@@ -12,6 +12,10 @@ export default defineNuxtConfig({
     redirect: false,
   },
 
+  nitro: {
+    preset: 'cloudflare-pages',
+  },
+
   app: {
     head: {
       title: 'GoFit Health',

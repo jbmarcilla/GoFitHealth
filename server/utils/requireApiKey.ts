@@ -1,5 +1,12 @@
 import type { H3Event } from 'h3'
-import { createHash } from 'crypto'
+
+async function sha256(text: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(text)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
 
 export async function requireApiKey(event: H3Event) {
   const authHeader = getHeader(event, 'authorization')
@@ -8,7 +15,7 @@ export async function requireApiKey(event: H3Event) {
   }
 
   const apiKey = authHeader.slice(7)
-  const keyHash = createHash('sha256').update(apiKey).digest('hex')
+  const keyHash = await sha256(apiKey)
 
   const admin = useSupabaseAdmin()
   const { data, error } = await admin

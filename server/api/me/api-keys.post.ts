@@ -1,4 +1,17 @@
-import { randomBytes, createHash } from 'crypto'
+async function sha256(text: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(text)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function generateRandomKey(): string {
+  const bytes = new Uint8Array(32)
+  crypto.getRandomValues(bytes)
+  const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
+  return 'gf_' + hex
+}
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
@@ -6,8 +19,8 @@ export default defineEventHandler(async (event) => {
   const admin = useSupabaseAdmin()
 
   const label = body?.label || 'default'
-  const rawKey = 'gf_' + randomBytes(32).toString('hex')
-  const keyHash = createHash('sha256').update(rawKey).digest('hex')
+  const rawKey = generateRandomKey()
+  const keyHash = await sha256(rawKey)
   const keyPrefix = rawKey.slice(0, 11)
 
   const { data, error } = await admin

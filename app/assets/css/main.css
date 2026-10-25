@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-brand: #10b981;
+    --color-brand-dark: #059669;
+    --color-brand-light: #34d399;
+    --color-density-green: #22c55e;
+    --color-density-yellow: #eab308;
+    --color-density-red: #ef4444;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-6 py-3 rounded-xl transition-colors duration-200 inline-flex items-center gap-2;
+  }
+
+  .btn-secondary {
+    @apply bg-white hover:bg-gray-50 text-gray-700 font-medium px-6 py-3 rounded-xl border border-gray-200 transition-colors duration-200 inline-flex items-center gap-2;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl border border-gray-100 shadow-sm p-6;
+  }
+
+  .stat-card {
+    @apply card flex flex-col gap-1;
+  }
+
+  .density-green {
+    @apply bg-green-100 text-green-800 border-green-200;
+  }
+
+  .density-yellow {
+    @apply bg-yellow-100 text-yellow-800 border-yellow-200;
+  }
+
+  .density-red {
+    @apply bg-red-100 text-red-800 border-red-200;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all;
+  }
+
+  .label {
+    @apply text-sm font-medium text-gray-700 mb-1 block;
+  }
+}

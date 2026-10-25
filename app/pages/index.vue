@@ -1,6 +1,10 @@
 <script setup lang="ts">
 const user = useSupabaseUser()
 
+watch(user, (u) => {
+  if (u) navigateTo('/dashboard')
+}, { immediate: true })
+
 const features = [
   {
     icon: '⚖️',

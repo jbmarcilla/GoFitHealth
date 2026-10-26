@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { COUNTRY_TIMEZONES, countryFlag, countryLabel, timezoneLabel } from '../../shared/constants/countries'
+
 definePageMeta({ middleware: 'auth' })
 
-type SectionKey = 'connect' | 'goals' | 'trainer' | 'profile'
+type SectionKey = 'connect' | 'goals' | 'trainer' | 'location' | 'profile'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,6 +19,7 @@ const sections: Array<{ key: SectionKey; icon: string; label: string; hint: stri
   { key: 'connect', icon: '🔌', label: 'Conectar IA', hint: 'Claude y ChatGPT' },
   { key: 'goals', icon: '🎯', label: 'Objetivos', hint: 'Peso y metas' },
   { key: 'trainer', icon: '🧑‍🏫', label: 'Mi entrenador', hint: 'Personalidad de la IA' },
+  { key: 'location', icon: '📍', label: 'Ubicación', hint: 'Dónde estás ahora' },
   { key: 'profile', icon: '👤', label: 'Perfil', hint: 'Cuenta y preferencias' },
 ]
 
@@ -90,6 +93,68 @@ async function saveProfile(successMessage = 'Preferencias guardadas') {
     showError(e)
   }
   saving.value = false
+}
+
+// ---------- Ubicación ----------
+const { data: locationData, refresh: refreshLocation } = await useFetch<any>('/api/me/location')
+
+const countryOptions = Object.keys(COUNTRY_TIMEZONES)
+  .map(code => ({ code, name: countryLabel(code), flag: countryFlag(code) }))
+  .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+
+const locationForm = reactive({ country_code: 'PE', city: '', timezone: 'America/Lima' })
+const editingLocation = ref(false)
+const savingLocation = ref(false)
+
+const currentLocation = computed(() => locationData.value?.current ?? null)
+const pastLocations = computed(() => (locationData.value?.history ?? []).filter((l: any) => !l.is_current))
+const showLocationForm = computed(() => !currentLocation.value || editingLocation.value)
+const timezoneOptions = computed(() => COUNTRY_TIMEZONES[locationForm.country_code] ?? [locationForm.timezone])
+
+watch(() => locationForm.country_code, (code) => {
+  const tzs = COUNTRY_TIMEZONES[code] ?? []
+  if (!tzs.includes(locationForm.timezone)) locationForm.timezone = tzs[0] ?? locationForm.timezone
+})
+
+function prefillLocationForm() {
+  const current = currentLocation.value
+  if (current) {
+    locationForm.country_code = current.country.code
+    locationForm.city = current.city ?? ''
+    locationForm.timezone = current.timezone
+    return
+  }
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const guess = Object.entries(COUNTRY_TIMEZONES).find(([, tzs]) => tzs.includes(browserTz))
+  if (guess) {
+    locationForm.country_code = guess[0]
+    locationForm.timezone = browserTz
+  }
+}
+
+onMounted(prefillLocationForm)
+
+function startEditLocation() {
+  prefillLocationForm()
+  editingLocation.value = true
+}
+
+async function saveLocation() {
+  savingLocation.value = true
+  message.value = ''
+  try {
+    const res = await $fetch<{ changed: boolean }>('/api/me/location', { method: 'POST', body: locationForm })
+    message.value = res.changed ? 'Ubicación actualizada' : 'Ya estabas registrado ahí'
+    editingLocation.value = false
+    await Promise.all([refreshLocation(), refreshProfile()])
+  } catch (e: any) {
+    showError(e)
+  }
+  savingLocation.value = false
+}
+
+function formatDay(iso: string) {
+  return new Date(iso).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 // ---------- Objetivos ----------
@@ -582,6 +647,89 @@ function closeModal() {
                 <p class="mt-2 text-[11px] text-gray-400 leading-snug">{{ g.alt }}</p>
               </div>
             </div>
+          </div>
+        </section>
+
+        <!-- ========== UBICACIÓN ========== -->
+        <section v-else-if="activeSection === 'location'" class="space-y-4">
+          <header>
+            <h2 class="font-semibold text-lg text-gray-900">¿Dónde estás?</h2>
+            <p class="text-sm text-gray-500">Tu entrenador ajusta la hora del día y te sugiere comidas que se consiguen donde estás.</p>
+          </header>
+
+          <div
+            v-if="currentLocation && !editingLocation"
+            class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 p-5 text-white"
+          >
+            <div class="absolute -right-6 -bottom-8 text-[120px] leading-none opacity-20 select-none">{{ countryFlag(currentLocation.country.code) }}</div>
+            <p class="text-xs font-medium uppercase tracking-wider text-sky-100">Estás en</p>
+            <p class="mt-1 text-2xl font-bold">
+              {{ countryFlag(currentLocation.country.code) }}
+              {{ currentLocation.city ? `${currentLocation.city}, ` : '' }}{{ currentLocation.country.name }}
+            </p>
+            <p class="mt-1 text-sm text-sky-100">
+              🕐 Hora de {{ timezoneLabel(currentLocation.timezone) }} · desde el {{ formatDay(currentLocation.started_at) }}
+            </p>
+            <button
+              class="relative mt-4 rounded-xl bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur transition-colors hover:bg-white/25"
+              @click="startEditLocation"
+            >
+              ✈️ Cambié de lugar
+            </button>
+          </div>
+
+          <div v-if="showLocationForm" class="card space-y-4">
+            <p class="text-sm font-medium text-gray-900">
+              {{ currentLocation ? '¿A dónde te moviste?' : 'Cuéntanos dónde estás ahora' }}
+            </p>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label class="mb-1.5 block text-xs font-medium text-gray-500">País</label>
+                <select v-model="locationForm.country_code" class="input">
+                  <option v-for="c in countryOptions" :key="c.code" :value="c.code">{{ c.flag }} {{ c.name }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1.5 block text-xs font-medium text-gray-500">Ciudad</label>
+                <input v-model="locationForm.city" class="input" placeholder="Lima" maxlength="80" />
+              </div>
+            </div>
+            <div v-if="timezoneOptions.length > 1">
+              <label class="mb-1.5 block text-xs font-medium text-gray-500">Zona horaria</label>
+              <select v-model="locationForm.timezone" class="input">
+                <option v-for="tz in timezoneOptions" :key="tz" :value="tz">{{ timezoneLabel(tz) }}</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-end gap-3">
+              <button
+                v-if="editingLocation"
+                class="text-sm text-gray-500 transition-colors hover:text-gray-700"
+                @click="editingLocation = false"
+              >
+                Cancelar
+              </button>
+              <button
+                class="rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-sky-700 disabled:opacity-50"
+                :disabled="savingLocation"
+                @click="saveLocation"
+              >
+                {{ savingLocation ? 'Guardando...' : 'Guardar ubicación' }}
+              </button>
+            </div>
+            <p class="text-xs text-gray-400">💬 También puedes decirle a tu IA: "estoy en Santiago" y lo actualiza sola.</p>
+          </div>
+
+          <div v-if="pastLocations.length" class="card">
+            <h3 class="mb-4 text-xs font-medium uppercase tracking-wider text-gray-400">Lugares anteriores</h3>
+            <ol class="relative ml-2 space-y-4 border-l border-gray-200">
+              <li v-for="loc in pastLocations" :key="loc.id" class="ml-5">
+                <span class="absolute -left-[13px] flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm ring-2 ring-gray-100">
+                  {{ countryFlag(loc.country.code) }}
+                </span>
+                <p class="text-sm font-medium text-gray-800">{{ loc.city ? `${loc.city}, ` : '' }}{{ loc.country.name }}</p>
+                <p class="text-xs text-gray-400">{{ formatDay(loc.started_at) }} → {{ loc.ended_at ? formatDay(loc.ended_at) : 'hoy' }}</p>
+              </li>
+            </ol>
           </div>
         </section>
 

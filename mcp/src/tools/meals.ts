@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { ToolContext } from '../context.js'
 import { resolvePortionGrams } from '../utils/portions.js'
 import { dateParam, resolveDate } from '../coach.js'
+import { countryFlag, ensureCountry, getCurrentLocation } from '../location.js'
 
 const MEAL_LABELS: Record<string, string> = {
   breakfast: 'Desayuno',
@@ -95,22 +96,26 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
 
   server.tool(
     'search_food',
-    'Buscar alimentos en la base de datos compartida',
+    'Buscar alimentos en la base de datos compartida. Muestra primero los del país donde está el usuario.',
     {
       query: z.string().describe('Nombre del alimento a buscar'),
       limit: z.number().int().positive().default(10).describe('Máximo de resultados'),
     },
     async ({ query, limit }) => {
-      const { data: foods, error } = await ctx.db
-        .from('foods')
-        .select('id, name, brand, calories_per_100g, protein_g, carbs_g, fat_g, caloric_density, serving_reference')
-        .ilike('name', `%${query}%`)
-        .limit(limit)
+      const userId = await ctx.userId()
+      const [{ data: foods, error }, location] = await Promise.all([
+        ctx.db
+          .from('foods')
+          .select('id, name, brand, calories_per_100g, protein_g, carbs_g, fat_g, caloric_density, serving_reference, country:countries(code)')
+          .ilike('name', `%${query}%`)
+          .limit(limit * 3),
+        getCurrentLocation(ctx.db, userId),
+      ])
 
       if (error) return { content: [{ type: 'text' as const, text: `Error: ${error.message}` }] }
       if (!foods?.length) return { content: [{ type: 'text' as const, text: `No se encontraron alimentos con "${query}".` }] }
 
-      const lines = foods.map((f: {
+      type FoodRow = {
         name: string
         brand: string | null
         calories_per_100g: number
@@ -119,11 +124,18 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
         fat_g: number
         caloric_density: string
         serving_reference: string | null
-      }) => {
+        country: { code: string } | null
+      }
+      const here = location?.country.code
+      const rank = (f: FoodRow) => (f.country?.code === here ? 0 : f.country ? 2 : 1)
+      const sorted = (foods as unknown as FoodRow[]).sort((a, b) => rank(a) - rank(b)).slice(0, limit)
+
+      const lines = sorted.map((f) => {
         const brand = f.brand ? ` (${f.brand})` : ''
+        const flag = f.country ? ` ${countryFlag(f.country.code)}` : ''
         const density = DENSITY_LABELS[f.caloric_density] ?? f.caloric_density
         const ref = f.serving_reference ? ` | Ref: ${f.serving_reference}` : ''
-        return `• ${f.name}${brand} — ${f.calories_per_100g} kcal/100g | P:${f.protein_g}g C:${f.carbs_g}g G:${f.fat_g}g | ${density}${ref}`
+        return `• ${f.name}${brand}${flag} — ${f.calories_per_100g} kcal/100g | P:${f.protein_g}g C:${f.carbs_g}g G:${f.fat_g}g | ${density}${ref}`
       })
 
       return {
@@ -143,9 +155,11 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
       fat_g: z.number().nonnegative().optional().describe('Grasas por 100g'),
       brand: z.string().optional().describe('Marca'),
       food_category: z.string().optional().describe('Categoría (grains, protein, vegetables, fruits, dairy, fats, etc.)'),
+      country_code: z.string().length(2).optional().describe('País ISO (ej. PE) si es un alimento o marca local. Omitir si es universal (ej. manzana).'),
     },
-    async ({ name, calories_per_100g, protein_g, carbs_g, fat_g, brand, food_category }) => {
+    async ({ name, calories_per_100g, protein_g, carbs_g, fat_g, brand, food_category, country_code }) => {
       const userId = await ctx.userId()
+      const countryId = country_code ? await ensureCountry(ctx.db, country_code) : null
 
       const { data: existing } = await ctx.db
         .from('foods')
@@ -173,6 +187,7 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
           fat_g: fat_g ?? 0,
           brand,
           food_category,
+          country_id: countryId,
           added_by: userId,
         })
         .select('id, name, caloric_density')

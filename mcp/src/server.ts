@@ -8,6 +8,7 @@ import { registerStatusTools } from './tools/status.js'
 import { registerGoalTools } from './tools/goals.js'
 import { registerReportTools } from './tools/report.js'
 import { registerEntryTools } from './tools/entries.js'
+import { registerLocationTools } from './tools/location.js'
 import { SERVER_INSTRUCTIONS } from './coach.js'
 
 export function createServer(ctx: ToolContext) {
@@ -24,6 +25,7 @@ export function createServer(ctx: ToolContext) {
   registerGoalTools(server, ctx)
   registerReportTools(server, ctx)
   registerEntryTools(server, ctx)
+  registerLocationTools(server, ctx)
 
   return server
 }

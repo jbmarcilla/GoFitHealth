@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { ToolContext } from './context.js'
+import { getCurrentLocation } from './location.js'
 
 export const dateParam = z
   .string()
@@ -37,19 +38,23 @@ Reglas:
 - De noche (desde las 20:00 en su zona horaria), dale su resumen del día: calorías, agua, ejercicio y peso, con 1-2 recomendaciones para mañana.
 - Si habla de un día anterior ("ayer comí...", y es de madrugada), pasa el parámetro date con esa fecha.
 - Para corregir o borrar algo, usa get_day_log para ver los registros con su id y luego update_entry o delete_entry. Confirma con el usuario antes de borrar.
+- Si no sabes dónde está, pregúntale en qué ciudad y país está y guárdalo con set_location. Si menciona que viajó o está en otra ciudad/país, actualízalo con set_location.
+- Sugiere comidas típicas y fáciles de conseguir en su ubicación actual. Al agregar un alimento local con add_food, incluye su country_code.
 - La densidad calórica es informativa: ningún alimento es "malo".`
 
 export async function getCoachContext(ctx: ToolContext, userId: string) {
-  const [profileRes, anyWeightRes] = await Promise.all([
+  const [profileRes, anyWeightRes, location] = await Promise.all([
     ctx.db.from('profiles').select('trainer_prompt, timezone, display_name').eq('id', userId).maybeSingle(),
     ctx.db.from('weight_logs').select('weight_kg, date').eq('user_id', userId).order('date', { ascending: false }).limit(1),
+    getCurrentLocation(ctx.db, userId),
   ])
 
   const profile = profileRes.data
-  const timezone = profile?.timezone || 'America/Lima'
+  const timezone = location?.timezone || profile?.timezone || 'America/Lima'
   const hour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: timezone }).format(new Date()))
 
   return {
+    location,
     today: localDate(timezone),
     yesterday: localDate(timezone, -1),
     name: profile?.display_name as string | undefined,

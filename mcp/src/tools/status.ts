@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { ToolContext } from '../context.js'
 import { getCoachContext, resolveDate } from '../coach.js'
+import { formatLocation } from '../location.js'
 
 const MEAL_LABELS: Record<string, string> = {
   breakfast: 'Desayuno',
@@ -145,12 +146,16 @@ export function registerStatusTools(server: McpServer, ctx: ToolContext) {
       if (pendingMeals.length) {
         actions.push(`Pregúntale qué comió en: ${pendingMeals.map(t => MEAL_LABELS[t].toLowerCase()).join(', ')} (solo las que ya deberían haber pasado a las ${coach.hour}:00).`)
       }
+      if (!coach.location) {
+        actions.push('No sabemos dónde está: pregúntale en qué ciudad y país está ahora y usa set_location.')
+      }
       if (coach.isNight) {
         actions.push('Es de noche: dale su resumen del día con 1-2 recomendaciones para mañana.')
       }
 
       text += `\n\n---\n🧑‍🏫 Para el asistente:\n`
       if (coach.name) text += `Usuario: ${coach.name}\n`
+      text += `Ubicación actual: ${coach.location ? formatLocation(coach.location) : 'desconocida'}\n`
       text += `Hora local: ${coach.hour}:00 — hoy es ${coach.today}, ayer fue ${coach.yesterday}\n`
       text += `Personalidad de entrenador: ${coach.trainerPrompt || 'Coach motivador, cercano y positivo. Celebra los logros y da consejos simples.'}\n`
       if (actions.length) text += `Siguientes pasos:\n${actions.map(a => `- ${a}`).join('\n')}`

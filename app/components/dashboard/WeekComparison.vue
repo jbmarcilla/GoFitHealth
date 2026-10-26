@@ -27,7 +27,7 @@ function trendArrow(curr: number, prev: number) {
 
 <template>
   <div class="card">
-    <h3 class="font-semibold text-gray-900 mb-4">📊 Esta semana vs. anterior</h3>
+    <h3 class="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">📊 Esta semana vs. anterior</h3>
 
     <div v-if="current && previous" class="grid grid-cols-3 gap-4">
       <div class="text-center">

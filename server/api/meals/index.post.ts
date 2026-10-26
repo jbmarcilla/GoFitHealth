@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'No se pudo estimar calorías. Proporciona food_id o estimated_calories.' })
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = await userToday(user.id)
 
   const { data, error } = await admin
     .from('meal_logs')

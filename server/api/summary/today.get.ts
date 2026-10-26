@@ -1,14 +1,14 @@
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const admin = useSupabaseAdmin()
-  const today = new Date().toISOString().split('T')[0]
+  const today = await userToday(user.id)
 
   const [weightRes, mealsRes, waterRes, exercisesRes, goalRes] = await Promise.all([
     admin.from('weight_logs').select('*').eq('user_id', user.id).eq('date', today).maybeSingle(),
     admin.from('meal_logs').select('*').eq('user_id', user.id).eq('date', today).order('created_at'),
     admin.from('water_logs').select('amount_ml').eq('user_id', user.id).eq('date', today),
     admin.from('exercise_logs').select('*').eq('user_id', user.id).eq('date', today).order('created_at'),
-    admin.from('goals').select('daily_water_ml').eq('user_id', user.id).eq('active', true).maybeSingle(),
+    admin.from('goals').select('goal_type, target_weight_kg, target_muscle_mass_kg, daily_calorie_target, daily_water_ml').eq('user_id', user.id).eq('active', true).maybeSingle(),
   ])
 
   const meals = mealsRes.data || []
@@ -35,5 +35,7 @@ export default defineEventHandler(async (event) => {
     calories_in: caloriesIn,
     calories_out: caloriesOut,
     missing,
+    goal: goalRes.data,
+    date: today,
   }
 })

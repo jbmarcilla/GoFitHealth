@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { COUNTRY_TIMEZONES, countryFlag, countryLabel, timezoneLabel } from '../../shared/constants/countries'
+import { COUNTRY_TIMEZONES, countryFlag, countryLabel, timezoneLabel } from '#shared/constants/countries'
 
 definePageMeta({ middleware: 'auth' })
 

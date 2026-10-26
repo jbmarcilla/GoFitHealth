@@ -63,7 +63,7 @@ const chartOptions = {
 
 <template>
   <div class="card">
-    <h3 class="font-semibold text-gray-900 mb-4">⚖️ Peso — últimos 30 días</h3>
+    <h3 class="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">⚖️ Peso — últimos 30 días</h3>
     <div v-if="data.length" class="h-64">
       <Line :data="chartData" :options="chartOptions" />
     </div>

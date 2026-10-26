@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'weight_kg es requerido (número)' })
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = await userToday(user.id)
 
   const { data, error } = await admin
     .from('weight_logs')

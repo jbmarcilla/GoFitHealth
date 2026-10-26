@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { randomPhrase } from '#shared/constants/phrases'
+
+const phrase = randomPhrase()
 const client = useSupabaseClient()
 const user = useSupabaseUser()
 const config = useRuntimeConfig()
@@ -41,8 +44,8 @@ watch(user, (val) => {
   <div class="min-h-[calc(100vh-12rem)] flex items-center justify-center px-4">
     <div class="card max-w-sm w-full text-center">
       <span class="text-4xl">💪</span>
-      <h1 class="mt-4 text-2xl font-bold text-gray-900">Bienvenido a GoFit</h1>
-      <p class="mt-2 text-sm text-gray-500">Inicia sesión para registrar tu progreso</p>
+      <h1 class="mt-4 text-2xl font-semibold tracking-tight text-gray-900">Bienvenido a GoFit</h1>
+      <p class="mt-3 text-base leading-relaxed text-emerald-700">"{{ phrase }}"</p>
 
       <div v-if="error" class="mt-4 p-3 bg-red-50 text-red-700 text-sm rounded-xl">
         {{ error }}

@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'amount_ml es requerido (número positivo)' })
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = await userToday(user.id)
 
   const { data, error } = await admin
     .from('water_logs')

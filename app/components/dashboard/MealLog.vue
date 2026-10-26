@@ -32,7 +32,7 @@ const totalCalories = computed(() =>
 <template>
   <div class="card">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="font-semibold text-gray-900">🍽️ Comidas de hoy</h3>
+      <h3 class="text-xs font-medium uppercase tracking-wider text-gray-400">🍽️ Comidas de hoy</h3>
       <span class="text-sm font-medium text-emerald-600">{{ totalCalories }} kcal</span>
     </div>
 

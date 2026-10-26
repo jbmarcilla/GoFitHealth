@@ -12,34 +12,28 @@ const goalGlasses = computed(() => Math.ceil(props.goalMl / 250))
 <template>
   <div class="card">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="font-semibold text-gray-900">💧 Agua</h3>
+      <h3 class="text-xs font-medium uppercase tracking-wider text-gray-400">💧 Agua</h3>
       <span class="text-sm text-gray-500">{{ totalMl }} / {{ goalMl }} ml</span>
     </div>
 
-    <div class="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+    <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
       <div
-        class="h-full rounded-full transition-all duration-500 ease-out"
-        :class="percentage >= 100 ? 'bg-blue-500' : 'bg-blue-400'"
+        class="h-full rounded-full bg-sky-500 transition-all duration-500 ease-out"
         :style="{ width: `${percentage}%` }"
       />
     </div>
 
-    <div class="mt-3 flex items-center gap-1 flex-wrap">
+    <div class="mt-3 flex items-center gap-1.5 flex-wrap">
       <span
         v-for="i in goalGlasses"
         :key="i"
-        class="text-lg"
-        :class="i <= glasses ? 'opacity-100' : 'opacity-20'"
-      >
-        🥤
-      </span>
+        class="h-2.5 w-2.5 rounded-full transition-colors"
+        :class="i <= glasses ? 'bg-sky-500' : 'bg-gray-200'"
+        :title="`Vaso ${i}`"
+      />
+      <span class="ml-1 text-xs text-gray-400">{{ glasses }} de {{ goalGlasses }} vasos</span>
     </div>
 
-    <p
-      v-if="percentage >= 100"
-      class="mt-2 text-sm text-blue-600 font-medium"
-    >
-      ¡Meta cumplida! 🎉
-    </p>
+    <p v-if="percentage >= 100" class="mt-2 text-sm font-medium text-sky-600">¡Meta cumplida! 🎉</p>
   </div>
 </template>

@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'exercise_name, duration_minutes y calories_burned son requeridos' })
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = await userToday(user.id)
 
   const { data, error } = await admin
     .from('exercise_logs')

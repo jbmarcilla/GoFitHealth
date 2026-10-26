@@ -18,7 +18,7 @@ const totalBurned = computed(() =>
 <template>
   <div class="card">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="font-semibold text-gray-900">🏃 Ejercicio</h3>
+      <h3 class="text-xs font-medium uppercase tracking-wider text-gray-400">🏃 Ejercicio</h3>
       <span class="text-sm font-medium text-orange-600">{{ totalBurned }} kcal</span>
     </div>
 

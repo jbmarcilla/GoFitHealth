@@ -68,14 +68,15 @@ const tabs = [
 
 <template>
   <div class="card">
+    <p class="text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">Registrar ahora</p>
     <div class="flex items-center gap-2 mb-4 overflow-x-auto">
       <button
         v-for="tab in tabs"
         :key="tab.key"
-        class="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors"
+        class="px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors border"
         :class="activeTab === tab.key
-          ? 'bg-emerald-100 text-emerald-700'
-          : 'text-gray-500 hover:bg-gray-100'"
+          ? 'border-gray-900 bg-gray-900 text-white'
+          : 'border-gray-200 text-gray-500 hover:border-gray-300'"
         @click="activeTab = tab.key"
       >
         {{ tab.label }}

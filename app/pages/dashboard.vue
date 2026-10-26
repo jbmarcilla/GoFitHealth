@@ -6,9 +6,11 @@ definePageMeta({ middleware: 'auth' })
 const user = useSupabaseUser()
 const {
   selectedDate, todayStr, weekDays, isToday,
-  dayStatus, progress,
+  dayStatus, dayLoading, progress,
   selectDate, prevWeek, nextWeek, goToToday, refresh,
 } = useDashboard()
+
+const showMicros = ref(false)
 
 const firstName = computed(() =>
   (user.value?.user_metadata?.full_name || user.value?.user_metadata?.name || '').split(' ')[0],
@@ -26,6 +28,20 @@ const calorieGoal = computed(() => (goal.value?.daily_calorie_target ? Number(go
 const waterMl = computed(() => status.value?.water_total_ml ?? 0)
 const waterGoal = computed(() => (goal.value?.daily_water_ml ? Number(goal.value.daily_water_ml) : 2000))
 const targetKg = computed(() => (goal.value?.target_weight_kg ? Number(goal.value.target_weight_kg) : null))
+
+const weights = computed<Array<{ date: string; weight_kg: number }>>(() => progress.value?.weights ?? [])
+const weightOfDay = computed(() => (status.value?.weight?.weight_kg ? Number(status.value.weight.weight_kg) : null))
+const latestKg = computed(() => weightOfDay.value ?? (weights.value.length ? Number(weights.value[weights.value.length - 1].weight_kg) : null))
+const startKg = computed(() => (weights.value.length ? Number(weights.value[0].weight_kg) : null))
+const weightDelta = computed(() => (latestKg.value !== null && startKg.value !== null ? latestKg.value - startKg.value : null))
+const weightProgressPct = computed(() => {
+  if (latestKg.value === null || startKg.value === null || targetKg.value === null) return null
+  const total = Math.abs(startKg.value - targetKg.value)
+  if (total < 0.1) return 100
+  const done = Math.abs(startKg.value - latestKg.value)
+  const towards = (startKg.value > targetKg.value) === (startKg.value > latestKg.value)
+  return Math.max(0, Math.min(100, Math.round(((towards ? done : -done) / total) * 100)))
+})
 
 const proteinG = computed(() => nutrition.value?.protein_g ?? 0)
 const carbsG = computed(() => nutrition.value?.carbs_g ?? 0)
@@ -57,7 +73,17 @@ function microTone(n: { percent: number | null; is_limit: boolean }) {
 </script>
 
 <template>
-  <div class="mx-auto max-w-lg px-4 pb-16 pt-6">
+  <div class="relative mx-auto max-w-lg px-4 pb-16 pt-6">
+    <!-- Loading overlay -->
+    <Transition name="fade">
+      <div v-if="dayLoading" class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-white/60 backdrop-blur-[1px]">
+        <div class="flex flex-col items-center gap-2">
+          <span class="punch text-5xl">💪</span>
+          <span class="text-xs font-medium text-emerald-700">Cargando tu día…</span>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Header -->
     <header class="mb-6 flex items-end justify-between">
       <div>
@@ -97,18 +123,75 @@ function microTone(n: { percent: number | null; is_limit: boolean }) {
       />
     </div>
 
-    <!-- Macros -->
+    <!-- Weight metric -->
+    <div class="mb-6 rounded-2xl border border-gray-100 bg-white px-4 py-4">
+      <div class="flex items-center justify-between">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">⚖️ Peso</p>
+        <span v-if="weightDelta !== null && weights.length > 1" class="text-xs tabular-nums" :class="weightDelta < 0 ? 'text-emerald-600' : weightDelta > 0 ? 'text-amber-600' : 'text-gray-400'">
+          {{ weightDelta > 0 ? '+' : '' }}{{ weightDelta.toFixed(1) }} kg en 30 días
+        </span>
+      </div>
+      <div class="mt-2 flex items-end justify-between">
+        <p class="text-2xl font-bold tabular-nums text-gray-900">
+          <template v-if="latestKg !== null">{{ latestKg.toFixed(1) }}<span class="text-sm font-normal text-gray-400"> kg</span></template>
+          <template v-else>—</template>
+        </p>
+        <p v-if="targetKg !== null" class="text-xs text-gray-400">
+          Meta <b class="text-gray-700">{{ targetKg.toFixed(1) }} kg</b>
+          <template v-if="latestKg !== null"> · faltan {{ Math.abs(latestKg - targetKg).toFixed(1) }}</template>
+        </p>
+        <NuxtLink v-else to="/settings" class="text-xs text-emerald-600 hover:underline">Definir meta →</NuxtLink>
+      </div>
+      <template v-if="weightProgressPct !== null">
+        <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
+          <div class="h-full rounded-full bg-emerald-500 transition-all duration-700" :style="{ width: `${weightProgressPct}%` }" />
+        </div>
+        <div class="mt-1 flex justify-between text-[10px] tabular-nums text-gray-400">
+          <span>{{ startKg?.toFixed(1) }} kg</span>
+          <span>{{ weightProgressPct }}% del camino</span>
+          <span>{{ targetKg?.toFixed(1) }} kg</span>
+        </div>
+      </template>
+      <p v-else-if="latestKg === null" class="mt-1 text-xs text-gray-400">Dile a tu IA cuánto pesas hoy.</p>
+      <p v-else-if="!weightOfDay && isToday" class="mt-1 text-xs text-amber-600">Hoy aún no te pesaste · último registro</p>
+    </div>
+
+    <!-- Macros (tap to see micronutrients) -->
     <div v-if="nutrition" class="mb-6 rounded-2xl border border-gray-100 bg-white px-4 py-5">
-      <DashboardMacroSummary
-        :protein="proteinG"
-        :carbs="carbsG"
-        :fat="fatG"
-        :fiber="fiberG"
-        :protein-goal="proteinGoal"
-      />
-      <p v-if="fiberG > 0" class="mt-3 text-center text-[11px] text-gray-400">
-        Fibra: {{ fiberG }} g
-      </p>
+      <button class="w-full text-left" @click="showMicros = !showMicros">
+        <DashboardMacroSummary
+          :protein="proteinG"
+          :carbs="carbsG"
+          :fat="fatG"
+          :fiber="fiberG"
+          :protein-goal="proteinGoal"
+        />
+        <p class="mt-3 flex items-center justify-center gap-2 text-[11px] text-gray-400">
+          <span v-if="fiberG > 0">Fibra {{ fiberG }} g ·</span>
+          <span class="font-medium text-emerald-600">
+            {{ showMicros ? 'Ocultar micronutrientes ▲' : `Ver micronutrientes (${microNutrients.length}) ▼` }}
+          </span>
+        </p>
+      </button>
+      <Transition name="fade">
+        <div v-if="showMicros" class="mt-3 border-t border-gray-50 pt-3">
+          <template v-if="microNutrients.length">
+            <div class="flex flex-wrap gap-1.5">
+              <span
+                v-for="n in microNutrients"
+                :key="n.key"
+                class="rounded-full border px-2.5 py-1 text-xs tabular-nums"
+                :class="microTone(n)"
+                :title="fmt(n)"
+              >
+                {{ n.name }} <b v-if="n.percent !== null">{{ n.percent }}%</b><template v-else>{{ fmt(n) }}</template>
+              </span>
+            </div>
+            <p class="mt-2 text-[10px] text-gray-400">% de lo recomendado al día · Verde: cubierto · Ámbar: bajo · Rojo: exceso</p>
+          </template>
+          <p v-else class="text-xs text-gray-400">Los alimentos de este día aún no tienen micronutrientes. Se completan solos con el uso.</p>
+        </div>
+      </Transition>
     </div>
 
     <!-- Missing chips -->
@@ -134,23 +217,6 @@ function microTone(n: { percent: number | null; is_limit: boolean }) {
         </span>
       </div>
       <DashboardMealLog :meals="status?.meals ?? []" />
-    </div>
-
-    <!-- Micronutrients -->
-    <div v-if="microNutrients.length" class="mb-6 rounded-2xl border border-gray-100 bg-white px-4 py-4">
-      <p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Micronutrientes · % del día</p>
-      <div class="flex flex-wrap gap-1.5">
-        <span
-          v-for="n in microNutrients"
-          :key="n.key"
-          class="rounded-full border px-2.5 py-1 text-xs tabular-nums"
-          :class="microTone(n)"
-          :title="fmt(n)"
-        >
-          {{ n.name }} <b v-if="n.percent !== null">{{ n.percent }}%</b><template v-else>{{ fmt(n) }}</template>
-        </span>
-      </div>
-      <p class="mt-2 text-[10px] text-gray-400">Verde: cubierto · Ámbar: bajo · Rojo: exceso</p>
     </div>
 
     <!-- Exercise (full width, prominent) -->
@@ -209,3 +275,13 @@ function microTone(n: { percent: number | null; is_limit: boolean }) {
     <DashboardQuickLogForm class="mb-6" @logged="refresh" />
   </div>
 </template>
+
+<style scoped>
+.punch { animation: punch 0.9s ease-in-out infinite; display: inline-block; }
+@keyframes punch {
+  0%, 100% { transform: translateY(0) rotate(-8deg) scale(1); }
+  50% { transform: translateY(-10px) rotate(8deg) scale(1.15); }
+}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>

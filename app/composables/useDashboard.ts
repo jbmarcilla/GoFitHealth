@@ -2,7 +2,7 @@ export function useDashboard() {
   const todayStr = new Date().toISOString().split('T')[0]
   const selectedDate = ref(todayStr)
 
-  const { data: dayStatus, refresh: refreshDay } = useFetch('/api/summary/today', {
+  const { data: dayStatus, refresh: refreshDay, status: dayFetchStatus } = useFetch('/api/summary/today', {
     lazy: true,
     query: computed(() => ({ date: selectedDate.value })),
     watch: [selectedDate],
@@ -25,6 +25,8 @@ export function useDashboard() {
     query: { days: 30 },
     default: () => ({ weights: [], daily_calories: [], period_days: 30 }),
   })
+
+  const dayLoading = computed(() => dayFetchStatus.value === 'pending')
 
   const weekDays = computed(() => {
     const d = new Date(selectedDate.value + 'T12:00:00')
@@ -53,7 +55,7 @@ export function useDashboard() {
     const d = new Date(selectedDate.value + 'T12:00:00')
     d.setDate(d.getDate() + 7)
     const next = d.toISOString().split('T')[0]
-    if (next <= todayStr) selectedDate.value = next
+    selectedDate.value = next <= todayStr ? next : todayStr
   }
   function goToToday() {
     selectedDate.value = todayStr
@@ -69,6 +71,7 @@ export function useDashboard() {
     weekDays,
     isToday,
     dayStatus,
+    dayLoading,
     progress,
     selectDate,
     prevWeek,

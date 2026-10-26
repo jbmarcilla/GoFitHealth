@@ -11,9 +11,12 @@ interface Meal {
   estimated_protein?: number | null
   estimated_carbs?: number | null
   estimated_fat?: number | null
+  estimated_grams?: number | null
   caloric_density?: 'green' | 'yellow' | 'red'
   foods?: { food_category?: string; caloric_density?: 'green' | 'yellow' | 'red' } | null
 }
+
+type Density = 'green' | 'yellow' | 'red'
 
 const props = defineProps<{ meals: Meal[] }>()
 
@@ -52,14 +55,46 @@ function foodIcon(m: Meal): string {
 
 // --- Density ---
 
-const DENSITY: Record<string, { label: string; cls: string; dot: string }> = {
-  green:  { label: 'Ligero',   cls: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-400' },
-  yellow: { label: 'Moderado', cls: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-400' },
-  red:    { label: 'Denso',    cls: 'bg-rose-100 text-rose-700',       dot: 'bg-rose-400' },
+const DENSITY: Record<Density, { label: string; cls: string; dot: string; border: string; hint: string }> = {
+  green:  { label: 'Ligero',   cls: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-400', border: 'border-l-emerald-400', hint: 'Mucha agua y fibra, pocas calorías por gramo' },
+  yellow: { label: 'Moderado', cls: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-400',   border: 'border-l-amber-400',   hint: 'Base de tu alimentación, porciones moderadas' },
+  red:    { label: 'Denso',    cls: 'bg-rose-100 text-rose-700',       dot: 'bg-rose-400',    border: 'border-l-rose-400',    hint: 'Muchas calorías por gramo, porciones pequeñas' },
 }
 
-function getDensity(m: Meal) {
-  return m.foods?.caloric_density || m.caloric_density || null
+function densityFromRatio(kcalPerGram: number): Density {
+  if (kcalPerGram < 1) return 'green'
+  if (kcalPerGram <= 2.5) return 'yellow'
+  return 'red'
+}
+
+function getDensity(m: Meal): Density | null {
+  const known = m.foods?.caloric_density || m.caloric_density
+  if (known) return known
+  const grams = Number(m.estimated_grams ?? 0)
+  if (grams > 0) return densityFromRatio(m.estimated_calories / grams)
+  return null
+}
+
+/** Density of a whole meal: kcal per gram of everything eaten, or the dominant color by kcal. */
+function groupDensity(items: Meal[]): Density | null {
+  const grams = items.reduce((s, m) => s + Number(m.estimated_grams ?? 0), 0)
+  const kcal = items.reduce((s, m) => s + m.estimated_calories, 0)
+  if (grams > 0) return densityFromRatio(kcal / grams)
+  const byColor: Record<Density, number> = { green: 0, yellow: 0, red: 0 }
+  let any = false
+  for (const m of items) {
+    const d = getDensity(m)
+    if (d) { byColor[d] += m.estimated_calories; any = true }
+  }
+  if (!any) return null
+  return (Object.keys(byColor) as Density[]).sort((a, b) => byColor[b] - byColor[a])[0]
+}
+
+function groupKcalPerGram(items: Meal[]): string | null {
+  const grams = items.reduce((s, m) => s + Number(m.estimated_grams ?? 0), 0)
+  if (!grams) return null
+  const kcal = items.reduce((s, m) => s + m.estimated_calories, 0)
+  return (kcal / grams).toFixed(1)
 }
 
 // --- Groups ---
@@ -71,6 +106,8 @@ interface MealGroup {
   protein: number
   carbs: number
   fat: number
+  density: Density | null
+  kcalPerGram: string | null
 }
 
 const groups = computed<MealGroup[]>(() => {
@@ -86,6 +123,8 @@ const groups = computed<MealGroup[]>(() => {
       protein: Math.round(items.reduce((s, m) => s + Number(m.estimated_protein ?? 0), 0)),
       carbs: Math.round(items.reduce((s, m) => s + Number(m.estimated_carbs ?? 0), 0)),
       fat: Math.round(items.reduce((s, m) => s + Number(m.estimated_fat ?? 0), 0)),
+      density: groupDensity(items),
+      kcalPerGram: groupKcalPerGram(items),
     })
   }
   return result
@@ -116,18 +155,31 @@ const showLegend = ref(false)
   <div v-if="meals.length">
     <!-- Meal groups -->
     <div class="space-y-3">
-      <div v-for="g in groups" :key="g.type" class="rounded-2xl border border-gray-100 bg-white">
+      <div
+        v-for="g in groups"
+        :key="g.type"
+        class="rounded-2xl border border-gray-100 bg-white"
+        :class="g.density ? ['border-l-4', DENSITY[g.density].border] : ''"
+      >
         <!-- Group header -->
-        <div class="flex items-center justify-between border-b border-gray-50 px-4 py-3">
-          <div class="flex items-center gap-2">
-            <span class="text-lg">{{ MEAL_ICONS[g.type] || '🍽️' }}</span>
-            <span class="text-sm font-semibold text-gray-900">{{ MEAL_LABELS[g.type] || g.type }}</span>
+        <div class="border-b border-gray-50 px-4 py-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">{{ MEAL_ICONS[g.type] || '🍽️' }}</span>
+              <span class="text-sm font-semibold text-gray-900">{{ MEAL_LABELS[g.type] || g.type }}</span>
+            </div>
+            <div class="text-right">
+              <span class="text-sm font-bold tabular-nums text-gray-900">{{ g.kcal }} kcal</span>
+              <p class="text-[11px] tabular-nums text-gray-400">
+                {{ g.protein }}P · {{ g.carbs }}C · {{ g.fat }}G
+              </p>
+            </div>
           </div>
-          <div class="text-right">
-            <span class="text-sm font-bold tabular-nums text-gray-900">{{ g.kcal }} kcal</span>
-            <p class="text-[11px] tabular-nums text-gray-400">
-              {{ g.protein }}P · {{ g.carbs }}C · {{ g.fat }}G
-            </p>
+          <div v-if="g.density" class="mt-2 flex items-center gap-2 text-[11px]">
+            <span class="rounded-full px-2 py-0.5 font-semibold" :class="DENSITY[g.density].cls">
+              ● {{ DENSITY[g.density].label }}<template v-if="g.kcalPerGram"> · {{ g.kcalPerGram }} kcal/g</template>
+            </span>
+            <span class="text-gray-400">{{ DENSITY[g.density].hint }}</span>
           </div>
         </div>
 
@@ -161,7 +213,7 @@ const showLegend = ref(false)
     <!-- Density distribution -->
     <div v-if="densityStats.hasAny" class="mt-4 rounded-2xl border border-gray-100 bg-white p-4">
       <div class="mb-2 flex items-center justify-between">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Densidad calórica de hoy</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Densidad calórica del día</p>
         <button
           class="text-[11px] font-medium text-emerald-600 hover:underline"
           @click="showLegend = !showLegend"

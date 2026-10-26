@@ -74,7 +74,19 @@ export function registerStatusTools(server: McpServer) {
 
       let text = `📋 Estado de hoy (${today}):\n\n`
 
-      text += `⚖️ Peso: ${weight ? `${weight.weight_kg} kg` : 'No registrado ❌'}\n\n`
+      text += `⚖️ Peso hoy: ${weight ? `${weight.weight_kg} kg` : 'No registrado ❌'}\n`
+      const currentKg = weight?.weight_kg ?? coach.latestWeightKg
+      if (!weight && coach.latestWeightKg) {
+        text += `   Último registro: ${coach.latestWeightKg} kg (${coach.latestWeightDate})\n`
+      }
+      if (goal) {
+        text += `🎯 Peso objetivo: ${goal.target_weight_kg ? `${goal.target_weight_kg} kg` : 'sin definir'}`
+        if (currentKg && goal.target_weight_kg) {
+          text += ` — faltan ${Math.abs(Number(currentKg) - Number(goal.target_weight_kg)).toFixed(1)} kg`
+        }
+        text += `\n💪 Masa muscular objetivo: ${goal.target_muscle_mass_kg ? `${goal.target_muscle_mass_kg} kg` : 'sin definir'}\n`
+      }
+      text += `\n`
 
       text += `🍽️ Comidas (${caloriesIn} kcal):\n`
       for (const type of ['breakfast', 'lunch', 'dinner', 'snack']) {
@@ -120,6 +132,15 @@ export function registerStatusTools(server: McpServer) {
       }
       if (!goal) {
         actions.push('No tiene objetivo: pregúntale qué quiere lograr (peso objetivo, masa muscular, calorías) y usa set_goal.')
+      } else {
+        const missingGoal = [
+          !goal.target_weight_kg && 'peso objetivo',
+          !goal.target_muscle_mass_kg && 'masa muscular objetivo',
+          !goal.daily_calorie_target && 'calorías diarias',
+        ].filter(Boolean)
+        if (missingGoal.length) {
+          actions.push(`Al objetivo le falta: ${missingGoal.join(', ')}. Pregúntaselo (sin insistir si no lo sabe) y guárdalo con update_goal.`)
+        }
       }
       const pendingMeals = ['breakfast', 'lunch', 'dinner'].filter(t => !mealsByType[t]?.length)
       if (pendingMeals.length) {

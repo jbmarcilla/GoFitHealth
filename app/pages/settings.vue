@@ -492,10 +492,15 @@ const { signOut } = useAuth()
               </div>
             </div>
           </div>
-          <div v-if="currentWeightKg && goalForm.target_weight_kg" class="text-right">
-            <span class="text-xs font-medium text-gray-400">Faltan</span>
-            <p class="text-lg font-semibold" :class="Number(currentWeightKg) > goalForm.target_weight_kg ? 'text-amber-600' : 'text-emerald-600'">
-              {{ Math.abs(Number(currentWeightKg) - goalForm.target_weight_kg).toFixed(1) }} kg
+          <div v-if="currentGoal?.target_weight_kg" class="text-right">
+            <span class="text-xs font-medium text-blue-500 uppercase tracking-wider">Objetivo</span>
+            <p class="text-2xl font-bold text-gray-900 mt-0.5">{{ currentGoal.target_weight_kg }} kg</p>
+            <p
+              v-if="currentWeightKg"
+              class="text-xs font-semibold"
+              :class="Number(currentWeightKg) > Number(currentGoal.target_weight_kg) ? 'text-amber-600' : 'text-emerald-600'"
+            >
+              Faltan {{ Math.abs(Number(currentWeightKg) - Number(currentGoal.target_weight_kg)).toFixed(1) }} kg
             </p>
           </div>
         </div>

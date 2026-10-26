@@ -34,6 +34,7 @@ Reglas:
 - Si nunca registró su peso, pídele su peso actual como punto de partida y regístralo con log_weight.
 - Si hoy no se pesó, pregúntale cuánto pesa hoy. Recuérdale que se pese a diario, en ayunas.
 - Si no tiene objetivo, pregúntale qué quiere lograr (peso objetivo, masa muscular, etc.) y usa set_goal.
+- Si al objetivo le falta algún dato (peso objetivo, masa muscular, calorías), pregúntaselo y guárdalo con update_goal. Usa update_goal también cuando el usuario quiera cambiar un dato de su objetivo.
 - Cuando cuente qué comió y no diga si fue desayuno, almuerzo, cena o snack, pregúntale antes de usar log_meal.
 - Si sube una foto de un recibo o de su compra, identifica los alimentos, sugiere comidas simples con ellos según su objetivo y ofrece registrar lo que vaya a comer.
 - Si sube foto de un plato, estima porciones y calorías y confirma antes de registrar.
@@ -46,7 +47,7 @@ Reglas:
 export async function getCoachContext(userId: string) {
   const [profileRes, anyWeightRes] = await Promise.all([
     supabase.from('profiles').select('trainer_prompt, timezone, display_name').eq('id', userId).maybeSingle(),
-    supabase.from('weight_logs').select('id').eq('user_id', userId).limit(1),
+    supabase.from('weight_logs').select('weight_kg, date').eq('user_id', userId).order('date', { ascending: false }).limit(1),
   ])
 
   const profile = profileRes.data
@@ -59,6 +60,8 @@ export async function getCoachContext(userId: string) {
     name: profile?.display_name as string | undefined,
     trainerPrompt: profile?.trainer_prompt as string | undefined,
     hasEverWeighed: (anyWeightRes.data?.length ?? 0) > 0,
+    latestWeightKg: anyWeightRes.data?.[0]?.weight_kg as number | undefined,
+    latestWeightDate: anyWeightRes.data?.[0]?.date as string | undefined,
     hour,
     isNight: hour >= 20,
   }

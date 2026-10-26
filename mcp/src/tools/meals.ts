@@ -65,16 +65,17 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
       quantity: z.number().positive().describe('Cantidad consumida'),
       unit: z.enum(['g', 'ml', 'puno', 'taza', 'mano', 'cucharada', 'porcion']).default('porcion').describe('Unidad de medida'),
       estimated_calories: z.number().int().positive().optional().describe('Calorías de la porción (solo si el alimento no está en la DB)'),
-      protein_g: z.number().nonnegative().optional().describe('Proteína de la porción en g (si no está en la DB)'),
-      carbs_g: z.number().nonnegative().optional().describe('Carbohidratos de la porción en g (si no está en la DB)'),
-      fat_g: z.number().nonnegative().optional().describe('Grasa de la porción en g (si no está en la DB)'),
+      protein_g: z.number().nonnegative().optional().describe('Proteína de la porción en g. OBLIGATORIO si el alimento no está en la DB: estímalo tú, no le preguntes al usuario.'),
+      carbs_g: z.number().nonnegative().optional().describe('Carbohidratos de la porción en g. OBLIGATORIO si el alimento no está en la DB.'),
+      fat_g: z.number().nonnegative().optional().describe('Grasa de la porción en g. OBLIGATORIO si el alimento no está en la DB.'),
       fiber_g: z.number().nonnegative().optional().describe('Fibra de la porción en g (si no está en la DB)'),
+      grams: z.number().positive().optional().describe('Peso aproximado de la porción en gramos, si la unidad no es g/ml. Sirve para la densidad calórica.'),
       nutrients: nutrientsParam,
       food_nutrients_per_100g: z.record(z.string(), z.number().nonnegative()).optional().describe('Micronutrientes típicos del alimento POR 100 g, mismas claves que nutrients. Se guardan en la DB si el alimento no los tenía, y se usan para esta comida.'),
       notes: z.string().optional().describe('Notas adicionales'),
       date: dateParam,
     },
-    async ({ meal_type, food_name, quantity, unit, estimated_calories, protein_g, carbs_g, fat_g, fiber_g, nutrients, food_nutrients_per_100g, notes, date }) => {
+    async ({ meal_type, food_name, quantity, unit, estimated_calories, protein_g, carbs_g, fat_g, fiber_g, grams, nutrients, food_nutrients_per_100g, notes, date }) => {
       const userId = await ctx.userId()
       const today = await resolveDate(ctx, userId, date)
 
@@ -114,10 +115,13 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
         if (!estimated_calories) {
           return text(`⚠️ No encontré "${food_name}" en la base de datos. Agrégalo con add_food (calorías, macros y nutrientes por 100 g) para que quede para todos, o pasa estimated_calories y macros de la porción.`)
         }
+        if (protein_g === undefined || carbs_g === undefined || fat_g === undefined) {
+          return text(`⚠️ No se registró. "${food_name}" no está en la DB, así que necesito protein_g, carbs_g y fat_g de la porción (y grams si puedes). Estímalos con tus valores típicos y vuelve a llamar log_meal. No le preguntes al usuario.`)
+        }
         const kept = await sanitizeNutrients(ctx.db, nutrients)
         unknownNote = unknownKeysNote(nutrients, kept)
         nutrition = {
-          grams: unit === 'g' || unit === 'ml' ? quantity : null,
+          grams: unit === 'g' || unit === 'ml' ? quantity : grams ?? null,
           calories: estimated_calories,
           protein_g: protein_g ?? null,
           carbs_g: carbs_g ?? null,

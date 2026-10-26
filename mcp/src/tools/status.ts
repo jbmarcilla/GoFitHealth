@@ -4,6 +4,7 @@ import type { ToolContext } from '../context.js'
 import { getCoachContext, resolveDate } from '../coach.js'
 import { formatLocation } from '../location.js'
 import { summarizeNutrition } from '../nutrition.js'
+import { calorieTarget, explainPlan, proteinTarget } from '../energy.js'
 
 const MEAL_LABELS: Record<string, string> = {
   breakfast: 'Desayuno',
@@ -39,12 +40,13 @@ export function registerStatusTools(server: McpServer, ctx: ToolContext) {
       const userId = await ctx.userId()
       const today = await resolveDate(ctx, userId)
 
-      const [weightRes, mealsRes, waterRes, exercisesRes, goalRes, coach] = await Promise.all([
+      const [weightRes, mealsRes, waterRes, exercisesRes, goalRes, bodyRes, coach] = await Promise.all([
         ctx.db.from('weight_logs').select('*').eq('user_id', userId).eq('date', today).maybeSingle(),
         ctx.db.from('meal_logs').select('*').eq('user_id', userId).eq('date', today).order('created_at'),
         ctx.db.from('water_logs').select('amount_ml').eq('user_id', userId).eq('date', today),
         ctx.db.from('exercise_logs').select('*').eq('user_id', userId).eq('date', today),
         ctx.db.from('goals').select('*').eq('user_id', userId).eq('active', true).maybeSingle(),
+        ctx.db.from('profiles').select('height_cm, birth_year, sex, activity_level').eq('id', userId).maybeSingle(),
         getCoachContext(ctx, userId),
       ])
 
@@ -55,7 +57,12 @@ export function registerStatusTools(server: McpServer, ctx: ToolContext) {
       const goal = goalRes.data
 
       const waterGoal = goal?.daily_water_ml ?? 2000
-      const calorieGoal = goal?.daily_calorie_target ?? 0
+      const weightKg = Number(weight?.weight_kg ?? coach.latestWeightKg ?? 0)
+      const plan = weightKg > 0
+        ? calorieTarget({ weightKg, profile: bodyRes.data, targetKg: goal?.target_weight_kg ? Number(goal.target_weight_kg) : null, goalType: goal?.goal_type })
+        : null
+      const calorieGoal: number = goal?.daily_calorie_target ?? plan?.target ?? 0
+      const proteinGoal: number | null = goal?.daily_protein_g ?? (weightKg > 0 ? proteinTarget(weightKg, goal?.goal_type) : null)
 
       const caloriesIn = meals.reduce((sum: number, m: { estimated_calories: number }) => sum + m.estimated_calories, 0)
       const caloriesOut = exercises.reduce((sum: number, e: { calories_burned: number }) => sum + e.calories_burned, 0)
@@ -101,12 +108,13 @@ export function registerStatusTools(server: McpServer, ctx: ToolContext) {
         }
       }
       if (calorieGoal > 0) {
-        text += `  Meta: ${caloriesIn}/${calorieGoal} kcal (${Math.round((caloriesIn / calorieGoal) * 100)}%)\n`
+        const remaining = calorieGoal - caloriesIn + caloriesOut
+        text += `  Máximo del día: ${calorieGoal} kcal${goal?.daily_calorie_target ? ' (meta manual)' : ' (calculado)'} · consumido ${Math.round((caloriesIn / calorieGoal) * 100)}% · ${remaining >= 0 ? `quedan ${remaining}` : `exceso de ${-remaining}`} kcal (meta − comida + ejercicio)\n`
       }
       if (meals.length) {
         const n = await summarizeNutrition(ctx.db, userId, today, today, 1)
-        const proteinGoal = goal?.daily_protein_g ? ` / ${goal.daily_protein_g}` : ''
-        text += `  Macros: P ${n.protein_g}${proteinGoal} g · C ${n.carbs_g} g · G ${n.fat_g} g · Fibra ${n.fiber_g} g\n`
+        const proteinGoalStr = proteinGoal ? ` / ${proteinGoal}` : ''
+        text += `  Macros: P ${n.protein_g}${proteinGoalStr} g · C ${n.carbs_g} g · G ${n.fat_g} g · Fibra ${n.fiber_g} g\n`
         const micro = n.nutrients.filter(x => x.key !== 'fiber')
         const low = micro.filter(x => x.percent !== null && !x.is_limit && x.percent < 50).map(x => x.name)
         const high = micro.filter(x => x.percent !== null && x.is_limit && x.percent > 100).map(x => x.name)
@@ -141,16 +149,22 @@ export function registerStatusTools(server: McpServer, ctx: ToolContext) {
         actions.push('Hoy no se pesó: pregúntale cuánto pesa hoy.')
       }
       if (!goal) {
-        actions.push('No tiene objetivo: pregúntale qué quiere lograr (peso objetivo, masa muscular, calorías) y usa set_goal.')
+        actions.push('No tiene objetivo: pregúntale qué quiere lograr (peso objetivo, masa muscular) y usa set_goal. Las calorías NO se las pidas: se calculan solas.')
       } else {
         const missingGoal = [
           !goal.target_weight_kg && 'peso objetivo',
           !goal.target_muscle_mass_kg && 'masa muscular objetivo',
-          !goal.daily_calorie_target && 'calorías diarias',
         ].filter(Boolean)
         if (missingGoal.length) {
           actions.push(`Al objetivo le falta: ${missingGoal.join(', ')}. Pregúntaselo (sin insistir si no lo sabe) y guárdalo con update_goal.`)
         }
+      }
+      if (plan?.missing.length) {
+        const labels: Record<string, string> = { height_cm: 'estatura', birth_year: 'edad', sex: 'sexo' }
+        actions.push(`Para afinar su máximo de calorías faltan: ${plan.missing.map(m => labels[m]).join(', ')} (y su nivel de actividad semanal). Pregúntaselos UNA vez, con naturalidad, y guárdalos con set_body_profile. Mientras tanto el máximo es un estimado por peso.`)
+      }
+      if (plan) {
+        actions.push(`Máximo de calorías ${goal?.daily_calorie_target ? 'manual' : 'calculado'}: ${calorieGoal} kcal. ${explainPlan(plan)} Explícaselo si pregunta cuánto puede comer.`)
       }
       const pendingMeals = ['breakfast', 'lunch', 'dinner'].filter(t => !mealsByType[t]?.length)
       if (pendingMeals.length) {

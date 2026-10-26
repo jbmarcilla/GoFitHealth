@@ -50,6 +50,42 @@ const form = reactive({
   trainer_prompt: '' as string,
 })
 
+const bodyForm = reactive({
+  height_cm: null as number | null,
+  age: null as number | null,
+  sex: '' as string,
+  activity_level: 'light' as string,
+})
+const savingBody = ref(false)
+const activityOptions = [
+  { key: 'sedentary', label: 'Sedentario', hint: 'casi nada' },
+  { key: 'light', label: 'Ligero', hint: '1–3 días' },
+  { key: 'moderate', label: 'Moderado', hint: '3–5 días' },
+  { key: 'active', label: 'Activo', hint: '6–7 días' },
+  { key: 'very_active', label: 'Muy activo', hint: 'trabajo físico' },
+]
+
+async function saveBody() {
+  savingBody.value = true
+  message.value = ''
+  try {
+    await $fetch('/api/me/profile', {
+      method: 'PATCH',
+      body: {
+        height_cm: bodyForm.height_cm || null,
+        birth_year: bodyForm.age ? new Date().getFullYear() - bodyForm.age : null,
+        sex: bodyForm.sex || null,
+        activity_level: bodyForm.activity_level,
+      },
+    })
+    message.value = 'Datos guardados · tu máximo de calorías ya se recalculó'
+    await refreshProfile()
+  } catch (e: any) {
+    showError(e)
+  }
+  savingBody.value = false
+}
+
 const goalForm = reactive({
   goal_type: 'athletic' as string,
   target_weight_kg: null as number | null,
@@ -64,6 +100,10 @@ watch(profile, (p: any) => {
     form.measurement_system = p.measurement_system || 'grams'
     form.cooking_preference = p.cooking_preference || 'simple'
     form.trainer_prompt = p.trainer_prompt || ''
+    bodyForm.height_cm = p.height_cm ? Number(p.height_cm) : null
+    bodyForm.age = p.birth_year ? new Date().getFullYear() - p.birth_year : null
+    bodyForm.sex = p.sex || ''
+    bodyForm.activity_level = p.activity_level || 'light'
   }
 }, { immediate: true })
 
@@ -627,6 +667,43 @@ function closeModal() {
             </div>
           </div>
 
+          <!-- Datos corporales → máximo de calorías -->
+          <div class="rounded-2xl border border-gray-200 bg-white p-6">
+            <p class="text-sm font-medium text-gray-900">Tu máximo de calorías se calcula solo</p>
+            <p class="mt-1 text-xs text-gray-500">
+              Con tu peso, estatura, edad, sexo y actividad (fórmula Mifflin-St Jeor). Se recalcula con cada pesada y el déficit se suaviza al acercarte a tu meta.
+            </p>
+            <form class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4" @submit.prevent="saveBody">
+              <label class="block">
+                <span class="mb-1.5 block text-xs font-medium text-gray-500">Estatura (cm)</span>
+                <input v-model.number="bodyForm.height_cm" type="number" min="100" max="250" inputmode="numeric" class="input" placeholder="170" />
+              </label>
+              <label class="block">
+                <span class="mb-1.5 block text-xs font-medium text-gray-500">Edad</span>
+                <input v-model.number="bodyForm.age" type="number" min="10" max="110" inputmode="numeric" class="input" placeholder="30" />
+              </label>
+              <label class="block">
+                <span class="mb-1.5 block text-xs font-medium text-gray-500">Sexo</span>
+                <select v-model="bodyForm.sex" class="input">
+                  <option value="">—</option>
+                  <option value="male">Hombre</option>
+                  <option value="female">Mujer</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="mb-1.5 block text-xs font-medium text-gray-500">Actividad semanal</span>
+                <select v-model="bodyForm.activity_level" class="input">
+                  <option v-for="a in activityOptions" :key="a.key" :value="a.key">{{ a.label }} · {{ a.hint }}</option>
+                </select>
+              </label>
+              <div class="col-span-2 flex justify-end sm:col-span-4">
+                <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-40" :disabled="savingBody">
+                  {{ savingBody ? 'Guardando…' : 'Guardar' }}
+                </button>
+              </div>
+            </form>
+          </div>
+
           <!-- Más metas -->
           <details class="group rounded-2xl border border-gray-200 bg-white">
             <summary class="flex cursor-pointer list-none items-center justify-between p-6 text-sm font-medium text-gray-900">
@@ -656,8 +733,8 @@ function closeModal() {
                   <input v-model.number="goalForm.target_muscle_mass_kg" type="number" step="0.1" min="10" max="150" class="input" placeholder="35.0" />
                 </label>
                 <label class="block">
-                  <span class="mb-1.5 block text-xs font-medium text-gray-500">Calorías al día</span>
-                  <input v-model.number="goalForm.daily_calorie_target" type="number" step="50" min="800" max="8000" class="input" placeholder="2000" />
+                  <span class="mb-1.5 block text-xs font-medium text-gray-500">Calorías al día <span class="font-normal text-gray-400">(vacío = automático)</span></span>
+                  <input v-model.number="goalForm.daily_calorie_target" type="number" step="50" min="800" max="8000" class="input" placeholder="auto" />
                 </label>
                 <label class="block">
                   <span class="mb-1.5 block text-xs font-medium text-gray-500">Proteína al día (g)</span>

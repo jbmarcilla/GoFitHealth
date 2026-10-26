@@ -19,6 +19,9 @@ const copied = ref(false)
 // ---- Paso 1: peso ----
 const weight = ref<number | null>(null)
 const target = ref<number | null>(null)
+const height = ref<number | null>(null)
+const age = ref<number | null>(null)
+const sex = ref<'' | 'male' | 'female'>('')
 
 async function saveWeights() {
   if (!weight.value) return
@@ -26,6 +29,16 @@ async function saveWeights() {
   error.value = ''
   try {
     await $fetch('/api/weight', { method: 'POST', body: { weight_kg: weight.value, notes: 'Peso inicial' } })
+    if (height.value || age.value || sex.value) {
+      await $fetch('/api/me/profile', {
+        method: 'PATCH',
+        body: {
+          height_cm: height.value || null,
+          birth_year: age.value ? new Date().getFullYear() - age.value : null,
+          sex: sex.value || null,
+        },
+      })
+    }
     if (target.value) {
       const goal_type = target.value < weight.value ? 'lose_weight' : target.value > weight.value ? 'gain_weight' : 'maintain'
       await $fetch('/api/goals', { method: 'POST', body: { goal_type, target_weight_kg: target.value } })
@@ -105,7 +118,7 @@ async function finish() {
     <section v-if="step === 0">
       <h1 class="text-3xl font-semibold tracking-tight text-gray-900">Hola{{ firstName ? `, ${firstName}` : '' }} 👋</h1>
       <p class="mt-3 text-lg leading-relaxed text-emerald-700">"{{ phrase }}"</p>
-      <p class="mt-6 text-sm text-gray-500">Empecemos por lo básico. Dos números y nada más.</p>
+      <p class="mt-6 text-sm text-gray-500">Empecemos por lo básico. Tu peso de hoy y a dónde quieres llegar.</p>
 
       <form class="mt-6 grid gap-4 sm:grid-cols-2" @submit.prevent="saveWeights">
         <label class="block rounded-2xl border border-gray-200 bg-white p-5">
@@ -125,6 +138,28 @@ async function finish() {
           </span>
           <span class="mt-2 block text-xs text-emerald-700/60">Opcional. Lo puedes cambiar después.</span>
         </label>
+        <div class="sm:col-span-2 rounded-2xl border border-gray-200 bg-white p-5">
+          <p class="text-xs font-medium uppercase tracking-wider text-gray-400">Para calcular cuánto puedes comer</p>
+          <p class="mt-1 text-xs text-gray-500">Opcional. Con esto tu máximo de calorías se calcula solo y se ajusta con cada pesada.</p>
+          <div class="mt-3 grid grid-cols-3 gap-3">
+            <label class="block">
+              <span class="mb-1 block text-[11px] text-gray-500">Estatura (cm)</span>
+              <input v-model.number="height" type="number" min="100" max="250" inputmode="numeric" class="input" placeholder="170" />
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-[11px] text-gray-500">Edad</span>
+              <input v-model.number="age" type="number" min="10" max="110" inputmode="numeric" class="input" placeholder="30" />
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-[11px] text-gray-500">Sexo</span>
+              <select v-model="sex" class="input">
+                <option value="">—</option>
+                <option value="male">Hombre</option>
+                <option value="female">Mujer</option>
+              </select>
+            </label>
+          </div>
+        </div>
         <div class="sm:col-span-2 flex justify-end">
           <button type="submit" class="rounded-xl bg-gray-900 px-6 py-3 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-40" :disabled="!weight || saving">
             {{ saving ? 'Guardando…' : 'Continuar →' }}

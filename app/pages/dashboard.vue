@@ -120,6 +120,7 @@ function microTone(n: { percent: number | null; is_limit: boolean }) {
         :consumed="caloriesIn"
         :goal="calorieGoal"
         :burned="caloriesOut"
+        :plan="status?.calorie_plan ?? null"
       />
     </div>
 

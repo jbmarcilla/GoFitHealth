@@ -1,9 +1,32 @@
 <script setup lang="ts">
+interface Plan {
+  auto: boolean
+  method: 'mifflin' | 'approx'
+  tdee: number
+  bmr: number
+  adjustment: number
+  direction: 'lose' | 'gain' | 'maintain'
+  weeks_to_goal: number | null
+  kg_to_goal: number
+  missing: string[]
+}
+
 const props = defineProps<{
   consumed: number
   goal: number | null
   burned: number
+  plan?: Plan | null
 }>()
+
+const showHow = ref(false)
+const planText = computed(() => {
+  const p = props.plan
+  if (!p) return ''
+  const gasto = `Tu cuerpo gasta ≈ ${p.tdee.toLocaleString('es-PE')} kcal al día${p.method === 'mifflin' ? ' (metabolismo basal × tu actividad)' : ' (estimado solo por tu peso)'}`
+  if (p.direction === 'lose') return `${gasto}. Comer ${Math.abs(p.adjustment)} kcal menos baja ≈ ${(Math.abs(p.adjustment) * 7 / 7700).toFixed(1)} kg por semana${p.weeks_to_goal ? `, llegarías en ≈ ${p.weeks_to_goal} semanas` : ''}. Cada vez que te pesas, el máximo se recalcula y el déficit se suaviza al acercarte.`
+  if (p.direction === 'gain') return `${gasto}. Con ${p.adjustment} kcal extra subes gradual${p.weeks_to_goal ? ` (≈ ${p.weeks_to_goal} semanas)` : ''}. Se recalcula con cada pesada.`
+  return `${gasto}. Comer alrededor de eso mantiene tu peso.`
+})
 
 const R = 46
 const C = 2 * Math.PI * R
@@ -95,6 +118,16 @@ const fmt = (n: number) => Math.abs(n).toLocaleString('es-PE')
           <span>Consumido</span>
           <span>Máximo del día: <b class="text-gray-600">{{ fmt(goal) }} kcal</b></span>
         </div>
+        <div v-if="plan?.auto" class="mb-2 rounded-xl bg-emerald-50/60 px-3 py-2 text-[11px] leading-relaxed text-emerald-800">
+          <button class="flex w-full items-center justify-between font-medium" @click="showHow = !showHow">
+            <span>🧮 Calculado con tu peso{{ plan.method === 'approx' ? ' (aprox.)' : '' }} · se ajusta en cada pesada</span>
+            <span>{{ showHow ? '▲' : '¿cómo? ▼' }}</span>
+          </button>
+          <p v-if="showHow" class="mt-1.5 text-emerald-900/80">{{ planText }}</p>
+          <p v-if="showHow && plan.missing.length" class="mt-1 text-amber-700">
+            Para afinarlo, dile a tu IA tu {{ plan.missing.map(m => ({ height_cm: 'estatura', birth_year: 'edad', sex: 'sexo' })[m]).join(', ') }} y cuánto te mueves a la semana.
+          </p>
+        </div>
         <div class="relative h-3 overflow-hidden rounded-full bg-gray-100">
           <div
             class="h-full rounded-full transition-all duration-700"
@@ -158,7 +191,7 @@ const fmt = (n: number) => Math.abs(n).toLocaleString('es-PE')
         to="/settings"
         class="mt-4 flex items-center justify-between rounded-xl border border-dashed border-emerald-200 bg-emerald-50/50 px-3 py-2.5 text-sm text-emerald-700 transition hover:bg-emerald-50"
       >
-        <span>🎯 Define tu meta diaria para ver tu máximo y tu déficit</span>
+        <span>⚖️ Registra tu peso y tu máximo diario se calcula solo</span>
         <span>→</span>
       </NuxtLink>
     </template>

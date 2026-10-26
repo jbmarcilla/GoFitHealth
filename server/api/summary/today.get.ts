@@ -3,13 +3,14 @@ import { summarizeNutrition } from '../../../mcp/src/nutrition'
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const admin = useSupabaseAdmin()
-  const today = await userToday(user.id)
+  const query = getQuery(event)
+  const date = (query.date as string)?.match(/^\d{4}-\d{2}-\d{2}$/) ? (query.date as string) : await userToday(user.id)
 
   const [weightRes, mealsRes, waterRes, exercisesRes, goalRes] = await Promise.all([
-    admin.from('weight_logs').select('*').eq('user_id', user.id).eq('date', today).maybeSingle(),
-    admin.from('meal_logs').select('*').eq('user_id', user.id).eq('date', today).order('created_at'),
-    admin.from('water_logs').select('amount_ml').eq('user_id', user.id).eq('date', today),
-    admin.from('exercise_logs').select('*').eq('user_id', user.id).eq('date', today).order('created_at'),
+    admin.from('weight_logs').select('*').eq('user_id', user.id).eq('date', date).maybeSingle(),
+    admin.from('meal_logs').select('*, foods!food_id(food_category)').eq('user_id', user.id).eq('date', date).order('created_at'),
+    admin.from('water_logs').select('amount_ml').eq('user_id', user.id).eq('date', date),
+    admin.from('exercise_logs').select('*').eq('user_id', user.id).eq('date', date).order('created_at'),
     admin.from('goals').select('goal_type, target_weight_kg, target_muscle_mass_kg, daily_calorie_target, daily_protein_g, daily_water_ml').eq('user_id', user.id).eq('active', true).maybeSingle(),
   ])
 
@@ -38,7 +39,7 @@ export default defineEventHandler(async (event) => {
     calories_out: caloriesOut,
     missing,
     goal: goalRes.data,
-    date: today,
-    nutrition: meals.length ? await summarizeNutrition(admin as any, user.id, today, today, 1) : null,
+    date,
+    nutrition: meals.length ? await summarizeNutrition(admin as any, user.id, date, date, 1) : null,
   }
 })

@@ -1,10 +1,9 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { supabase } from '../db.js'
-import { getUserId } from '../auth.js'
+import type { ToolContext } from '../context.js'
 import { dateParam, resolveDate } from '../coach.js'
 
-export function registerWaterTools(server: McpServer) {
+export function registerWaterTools(server: McpServer, ctx: ToolContext) {
   server.tool(
     'log_water',
     'Registrar consumo de agua. Se suma al total del día.',
@@ -13,10 +12,10 @@ export function registerWaterTools(server: McpServer) {
       date: dateParam,
     },
     async ({ amount_ml, date }) => {
-      const userId = await getUserId()
-      const today = await resolveDate(userId, date)
+      const userId = await ctx.userId()
+      const today = await resolveDate(ctx, userId, date)
 
-      const { error } = await supabase.from('water_logs').insert({
+      const { error } = await ctx.db.from('water_logs').insert({
         user_id: userId,
         date: today,
         amount_ml,
@@ -24,7 +23,7 @@ export function registerWaterTools(server: McpServer) {
 
       if (error) return { content: [{ type: 'text' as const, text: `Error: ${error.message}` }] }
 
-      const { data: todayLogs } = await supabase
+      const { data: todayLogs } = await ctx.db
         .from('water_logs')
         .select('amount_ml')
         .eq('user_id', userId)

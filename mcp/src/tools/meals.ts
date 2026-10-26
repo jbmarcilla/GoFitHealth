@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { supabase } from '../db.js'
-import { getUserId } from '../auth.js'
+import type { ToolContext } from '../context.js'
 import { resolvePortionGrams } from '../utils/portions.js'
 import { dateParam, resolveDate } from '../coach.js'
 
@@ -18,7 +17,7 @@ const DENSITY_LABELS: Record<string, string> = {
   red: '🔴 Alta',
 }
 
-export function registerMealTools(server: McpServer) {
+export function registerMealTools(server: McpServer, ctx: ToolContext) {
   server.tool(
     'log_meal',
     'Registrar una comida (desayuno, almuerzo, cena o snack). Si el usuario no dijo qué comida del día fue, pregúntale antes de llamar. Busca el alimento en la base de datos para calcular calorías automáticamente.',
@@ -32,15 +31,15 @@ export function registerMealTools(server: McpServer) {
       date: dateParam,
     },
     async ({ meal_type, food_name, quantity, unit, estimated_calories, notes, date }) => {
-      const userId = await getUserId()
-      const today = await resolveDate(userId, date)
+      const userId = await ctx.userId()
+      const today = await resolveDate(ctx, userId, date)
 
       let calories = estimated_calories ?? 0
       let foodId: string | null = null
       let foodCategory: string | null = null
       let densityInfo = ''
 
-      const { data: foods } = await supabase
+      const { data: foods } = await ctx.db
         .from('foods')
         .select('id, name, calories_per_100g, caloric_density, food_category')
         .ilike('name', `%${food_name}%`)
@@ -56,7 +55,7 @@ export function registerMealTools(server: McpServer) {
           if (unit === 'g' || unit === 'ml') {
             grams = quantity
           } else {
-            grams = (await resolvePortionGrams(unit, foodId, foodCategory)) * quantity
+            grams = (await resolvePortionGrams(ctx, unit, foodId, foodCategory)) * quantity
           }
           calories = Math.round((grams / 100) * food.calories_per_100g)
         }
@@ -71,7 +70,7 @@ export function registerMealTools(server: McpServer) {
         }
       }
 
-      const { error } = await supabase.from('meal_logs').insert({
+      const { error } = await ctx.db.from('meal_logs').insert({
         user_id: userId,
         date: today,
         meal_type,
@@ -102,7 +101,7 @@ export function registerMealTools(server: McpServer) {
       limit: z.number().int().positive().default(10).describe('Máximo de resultados'),
     },
     async ({ query, limit }) => {
-      const { data: foods, error } = await supabase
+      const { data: foods, error } = await ctx.db
         .from('foods')
         .select('id, name, brand, calories_per_100g, protein_g, carbs_g, fat_g, caloric_density, serving_reference')
         .ilike('name', `%${query}%`)
@@ -146,9 +145,9 @@ export function registerMealTools(server: McpServer) {
       food_category: z.string().optional().describe('Categoría (grains, protein, vegetables, fruits, dairy, fats, etc.)'),
     },
     async ({ name, calories_per_100g, protein_g, carbs_g, fat_g, brand, food_category }) => {
-      const userId = await getUserId()
+      const userId = await ctx.userId()
 
-      const { data: existing } = await supabase
+      const { data: existing } = await ctx.db
         .from('foods')
         .select('id, name, brand')
         .ilike('name', name)
@@ -164,7 +163,7 @@ export function registerMealTools(server: McpServer) {
         }
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await ctx.db
         .from('foods')
         .insert({
           name,

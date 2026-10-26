@@ -1,19 +1,18 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { supabase } from '../db.js'
-import { getUserId } from '../auth.js'
+import type { ToolContext } from '../context.js'
 import { dateParam, resolveDate } from '../coach.js'
 
-export function registerWeightTools(server: McpServer) {
+export function registerWeightTools(server: McpServer, ctx: ToolContext) {
   server.tool(
     'log_weight',
     'Registrar peso de un día (hoy por defecto). Si ya hay registro ese día, lo actualiza.',
     { weight_kg: z.number().positive().describe('Peso en kilogramos'), date: dateParam },
     async ({ weight_kg, date }) => {
-      const userId = await getUserId()
-      const today = await resolveDate(userId, date)
+      const userId = await ctx.userId()
+      const today = await resolveDate(ctx, userId, date)
 
-      const { error } = await supabase
+      const { error } = await ctx.db
         .from('weight_logs')
         .upsert(
           { user_id: userId, date: today, weight_kg },
@@ -35,11 +34,11 @@ export function registerWeightTools(server: McpServer) {
     'Ver progreso de peso y calorías en los últimos N días',
     { days: z.number().int().positive().default(30).describe('Número de días a consultar') },
     async ({ days }) => {
-      const userId = await getUserId()
+      const userId = await ctx.userId()
       const fromDate = new Date()
       fromDate.setDate(fromDate.getDate() - days)
 
-      const { data: weights } = await supabase
+      const { data: weights } = await ctx.db
         .from('weight_logs')
         .select('date, weight_kg')
         .eq('user_id', userId)

@@ -1,10 +1,9 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { supabase } from '../db.js'
-import { getUserId } from '../auth.js'
+import type { ToolContext } from '../context.js'
 import { dateParam, resolveDate } from '../coach.js'
 
-export function registerExerciseTools(server: McpServer) {
+export function registerExerciseTools(server: McpServer, ctx: ToolContext) {
   server.tool(
     'log_exercise',
     'Registrar ejercicio realizado. Si el ejercicio está en la base de datos, calcula calorías automáticamente.',
@@ -16,13 +15,13 @@ export function registerExerciseTools(server: McpServer) {
       date: dateParam,
     },
     async ({ exercise_name, duration_minutes, calories_burned, notes, date }) => {
-      const userId = await getUserId()
-      const today = await resolveDate(userId, date)
+      const userId = await ctx.userId()
+      const today = await resolveDate(ctx, userId, date)
 
       let calories = calories_burned ?? 0
       let exerciseId: string | null = null
 
-      const { data: exercises } = await supabase
+      const { data: exercises } = await ctx.db
         .from('exercises')
         .select('id, name, calories_per_hour')
         .ilike('name', `%${exercise_name}%`)
@@ -43,7 +42,7 @@ export function registerExerciseTools(server: McpServer) {
         }
       }
 
-      const { error } = await supabase.from('exercise_logs').insert({
+      const { error } = await ctx.db.from('exercise_logs').insert({
         user_id: userId,
         date: today,
         exercise_id: exerciseId,

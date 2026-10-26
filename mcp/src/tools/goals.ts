@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { supabase } from '../db.js'
-import { getUserId } from '../auth.js'
+import type { ToolContext } from '../context.js'
 
 const GOAL_LABELS: Record<string, string> = {
   athletic: '🏃 Atlético',
@@ -12,7 +11,7 @@ const GOAL_LABELS: Record<string, string> = {
   gain_weight: '📈 Subir de peso',
 }
 
-export function registerGoalTools(server: McpServer) {
+export function registerGoalTools(server: McpServer, ctx: ToolContext) {
   server.tool(
     'set_goal',
     'Establecer objetivo de fitness. Desactiva el objetivo anterior automáticamente.',
@@ -25,15 +24,15 @@ export function registerGoalTools(server: McpServer) {
       notes: z.string().optional().describe('Notas o detalles del objetivo'),
     },
     async ({ goal_type, target_weight_kg, target_muscle_mass_kg, daily_calorie_target, daily_water_ml, notes }) => {
-      const userId = await getUserId()
+      const userId = await ctx.userId()
 
-      await supabase
+      await ctx.db
         .from('goals')
         .update({ active: false })
         .eq('user_id', userId)
         .eq('active', true)
 
-      const { data, error } = await supabase
+      const { data, error } = await ctx.db
         .from('goals')
         .insert({
           user_id: userId,
@@ -73,13 +72,13 @@ export function registerGoalTools(server: McpServer) {
       notes: z.string().optional().describe('Notas del objetivo'),
     },
     async (fields) => {
-      const userId = await getUserId()
+      const userId = await ctx.userId()
       const changes = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined))
       if (!Object.keys(changes).length) {
         return { content: [{ type: 'text' as const, text: '⚠️ No indicaste ningún dato para cambiar.' }] }
       }
 
-      const { data: current } = await supabase
+      const { data: current } = await ctx.db
         .from('goals')
         .select('id')
         .eq('user_id', userId)
@@ -88,12 +87,12 @@ export function registerGoalTools(server: McpServer) {
 
       let result
       if (current) {
-        result = await supabase.from('goals').update(changes).eq('id', current.id).select().single()
+        result = await ctx.db.from('goals').update(changes).eq('id', current.id).select().single()
       } else {
         if (!fields.goal_type) {
           return { content: [{ type: 'text' as const, text: '⚠️ El usuario no tiene objetivo. Pregúntale qué quiere lograr e incluye goal_type.' }] }
         }
-        result = await supabase.from('goals').insert({ user_id: userId, active: true, ...changes }).select().single()
+        result = await ctx.db.from('goals').insert({ user_id: userId, active: true, ...changes }).select().single()
       }
 
       if (result.error) return { content: [{ type: 'text' as const, text: `Error: ${result.error.message}` }] }

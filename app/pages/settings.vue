@@ -6,7 +6,6 @@ type SectionKey = 'connect' | 'goals' | 'trainer' | 'profile'
 const route = useRoute()
 const router = useRouter()
 const user = useSupabaseUser()
-const config = useRuntimeConfig()
 const saving = ref(false)
 const message = ref('')
 const generatedKey = ref('')
@@ -75,7 +74,6 @@ watch(currentGoal, (g: any) => {
 }, { immediate: true })
 
 const isConnected = computed(() => apiKeys.value?.some((k: any) => k.last_used) ?? false)
-const hasKey = computed(() => (apiKeys.value?.length ?? 0) > 0)
 
 function showError(e: any) {
   message.value = `Error: ${e.data?.message || e.message}`
@@ -178,7 +176,7 @@ async function connectTo(platform: 'claude' | 'chatgpt') {
   try {
     const res = await $fetch<{ key: string }>('/api/me/api-keys', {
       method: 'POST',
-      body: { label: platform === 'claude' ? 'Claude Desktop' : 'ChatGPT' },
+      body: { label: platforms[platform].name },
     })
     generatedKey.value = res.key
     showKeyModal.value = true
@@ -205,28 +203,69 @@ async function copyToClipboard(text: string, label: string) {
   setTimeout(() => { copied.value = '' }, 2000)
 }
 
-const mcpServerConfig = computed(() => ({
-  gofit: {
-    command: 'npx',
-    args: ['-y', 'gofit-mcp'],
-    env: {
-      GOFIT_API_KEY: generatedKey.value,
-      SUPABASE_URL: 'https://fquatxoudkhzxafmzbir.supabase.co',
-      SUPABASE_SERVICE_ROLE_KEY: 'YOUR_SERVICE_ROLE_KEY',
-    },
+const platforms = {
+  claude: {
+    key: 'claude' as const,
+    name: 'Claude',
+    icon: '🤖',
+    by: 'Anthropic',
+    where: 'web, escritorio y celular',
+    description: 'Agrega GoFit como conector personalizado. Una vez conectado, funciona en todos tus dispositivos.',
+    link: 'https://claude.ai/settings/connectors',
+    steps: [
+      'Abre Claude → Configuración → Conectores',
+      'Toca "Agregar conector personalizado"',
+      'Ponle de nombre "GoFit" y pega tu URL',
+      'En un chat, activa GoFit desde el menú de herramientas',
+    ],
+    cardClass: 'border-gray-100 hover:border-violet-200',
+    iconClass: 'bg-gradient-to-br from-orange-100 to-amber-50',
+    buttonClass: 'bg-violet-600 hover:bg-violet-700 text-white',
+    softButtonClass: 'bg-violet-50 hover:bg-violet-100 text-violet-700',
   },
-}))
+  chatgpt: {
+    key: 'chatgpt' as const,
+    name: 'ChatGPT',
+    icon: '💬',
+    by: 'OpenAI',
+    where: 'chatgpt.com',
+    description: 'Agrega GoFit como conector MCP con el modo desarrollador de ChatGPT. Sin GPTs ni configuración técnica.',
+    link: 'https://chatgpt.com',
+    steps: [
+      'Abre ChatGPT → Configuración → Apps y conectores',
+      'En "Avanzado", activa el Modo desarrollador',
+      'Toca "Crear", ponle "GoFit", pega tu URL y elige "Sin autenticación"',
+      'En un chat, elige GoFit en el menú "+"',
+    ],
+    cardClass: 'border-gray-100 hover:border-green-200',
+    iconClass: 'bg-gradient-to-br from-green-100 to-teal-50',
+    buttonClass: 'bg-green-600 hover:bg-green-700 text-white',
+    softButtonClass: 'bg-green-50 hover:bg-green-100 text-green-700',
+  },
+}
 
-const claudeConfig = computed(() => JSON.stringify({ mcpServers: mcpServerConfig.value }, null, 2))
-const claudeDeepLink = computed(() => `claude://mcp/install?config=${encodeURIComponent(JSON.stringify(mcpServerConfig.value))}`)
+const platformList = Object.values(platforms)
+const activePlatform = computed(() => (connectingTo.value ? platforms[connectingTo.value] : null))
+
+const howItWorks = ['Genera tu URL personal', 'Pégala en Claude o ChatGPT', 'Habla: "hoy peso 75 kg"']
+const examplePhrases = ['Hoy peso 75 kg', 'Desayuné 2 huevos y pan con palta', 'Tomé un vaso de agua', '¿Cómo va mi semana?']
+
+const origin = useRequestURL().origin
+const mcpUrl = computed(() => `${origin}/mcp/${generatedKey.value}`)
+
+function platformHasKey(name: string) {
+  return apiKeys.value?.some((k: any) => k.label?.includes(name)) ?? false
+}
+
+function platformConnected(name: string) {
+  return apiKeys.value?.some((k: any) => k.label?.includes(name) && k.last_used) ?? false
+}
 
 function closeModal() {
   showKeyModal.value = false
   connectingTo.value = null
   generatedKey.value = ''
 }
-
-const { signOut } = useAuth()
 </script>
 
 <template>
@@ -287,13 +326,6 @@ const { signOut } = useAuth()
               <span v-if="s.key === 'connect' && isConnected" class="w-2 h-2 rounded-full bg-emerald-500" title="Conectado" />
             </button>
           </nav>
-
-          <button
-            class="mt-6 w-full text-left px-3 py-2 text-sm text-red-400 hover:text-red-600 transition-colors"
-            @click="signOut"
-          >
-            Cerrar sesión
-          </button>
         </div>
       </aside>
 
@@ -308,84 +340,89 @@ const { signOut } = useAuth()
         </div>
 
         <!-- ========== CONECTAR IA ========== -->
-        <section v-if="activeSection === 'connect'" class="space-y-4">
+        <section v-if="activeSection === 'connect'" class="space-y-5">
           <header>
             <h2 class="font-semibold text-lg text-gray-900">Conectar tu IA</h2>
             <p class="text-sm text-gray-500">Registra comidas, peso y ejercicios conversando con tu asistente.</p>
           </header>
 
-          <div class="grid sm:grid-cols-2 gap-4">
+          <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 p-5 text-white">
+            <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+            <p class="text-xs font-medium uppercase tracking-wider text-emerald-100">Cómo funciona</p>
+            <p class="mt-1 text-lg font-semibold">Una URL personal y tu IA se convierte en tu entrenador</p>
+            <ol class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <li v-for="(step, i) in howItWorks" :key="i" class="flex items-center gap-2.5 rounded-xl bg-white/10 px-3 py-2.5 text-sm">
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-emerald-700">{{ i + 1 }}</span>
+                {{ step }}
+              </li>
+            </ol>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
             <div
-              class="relative card border-2 transition-all hover:shadow-md"
-              :class="hasKey ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-100 hover:border-violet-200'"
+              v-for="p in platformList"
+              :key="p.key"
+              class="group relative flex flex-col rounded-2xl border-2 bg-white p-5 transition-all hover:shadow-lg"
+              :class="platformConnected(p.name) ? 'border-emerald-200' : p.cardClass"
             >
-              <div v-if="isConnected" class="absolute top-3 right-3 flex items-center gap-1.5 bg-emerald-100 text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-full">
-                <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              <div
+                v-if="platformConnected(p.name)"
+                class="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
+              >
+                <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
                 Conectado
               </div>
-              <div class="flex items-center gap-3 mb-3">
-                <div class="w-12 h-12 bg-gradient-to-br from-orange-100 to-amber-50 rounded-xl flex items-center justify-center text-2xl shadow-sm">🤖</div>
-                <div>
-                  <h3 class="font-semibold text-gray-900">Claude</h3>
-                  <p class="text-xs text-gray-400">Anthropic · MCP nativo</p>
-                </div>
-              </div>
-              <p class="text-xs text-gray-500 mb-4 leading-relaxed">
-                Claude Desktop soporta MCP de forma nativa. Conecta y empieza a registrar desde el chat.
-              </p>
-              <button
-                class="w-full font-medium px-4 py-2.5 rounded-xl transition-colors text-sm flex items-center justify-center gap-2"
-                :class="hasKey ? 'bg-violet-50 hover:bg-violet-100 text-violet-700' : 'bg-violet-600 hover:bg-violet-700 text-white'"
-                @click="connectTo('claude')"
-              >
-                <template v-if="hasKey">Generar nueva conexión</template>
-                <template v-else><span>⚡</span> Conectar con Claude</template>
-              </button>
-            </div>
 
-            <div class="card border-2 border-gray-100 hover:border-green-200 transition-all hover:shadow-md">
-              <div class="flex items-center gap-3 mb-3">
-                <div class="w-12 h-12 bg-gradient-to-br from-green-100 to-teal-50 rounded-xl flex items-center justify-center text-2xl shadow-sm">💬</div>
+              <div class="mb-4 flex items-center gap-3">
+                <div class="flex h-12 w-12 items-center justify-center rounded-xl text-2xl shadow-sm" :class="p.iconClass">{{ p.icon }}</div>
                 <div>
-                  <h3 class="font-semibold text-gray-900">ChatGPT</h3>
-                  <p class="text-xs text-gray-400">OpenAI · vía API key</p>
+                  <h3 class="font-semibold text-gray-900">{{ p.name }}</h3>
+                  <p class="text-xs text-gray-400">{{ p.by }}</p>
                 </div>
               </div>
-              <p class="text-xs text-gray-500 mb-4 leading-relaxed">
-                Usa GoFit desde ChatGPT con un GPT personalizado. Configuras la API key una vez.
-              </p>
+
+              <div class="mb-4 flex flex-wrap gap-1.5">
+                <span class="rounded-full bg-gray-900 px-2 py-0.5 text-[11px] font-medium text-white">Conector MCP</span>
+                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">{{ p.where }}</span>
+              </div>
+
+              <p class="mb-5 flex-1 text-sm leading-relaxed text-gray-500">{{ p.description }}</p>
+
               <button
-                class="w-full bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-2.5 rounded-xl transition-colors text-sm flex items-center justify-center gap-2"
-                @click="connectTo('chatgpt')"
+                class="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors"
+                :class="platformHasKey(p.name) ? p.softButtonClass : p.buttonClass"
+                @click="connectTo(p.key)"
               >
-                <span>🔑</span> Generar API Key
+                <template v-if="platformHasKey(p.name)">Generar nueva URL</template>
+                <template v-else>⚡ Conectar con {{ p.name }}</template>
               </button>
             </div>
           </div>
 
           <div v-if="apiKeys?.length" class="card">
-            <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Conexiones activas</h3>
+            <h3 class="mb-3 text-xs font-medium uppercase tracking-wider text-gray-400">Conexiones activas</h3>
             <div class="divide-y divide-gray-100">
-              <div v-for="key in apiKeys" :key="key.id" class="flex items-center justify-between py-2.5 gap-3">
-                <div class="flex items-center gap-3 min-w-0">
+              <div v-for="key in apiKeys" :key="key.id" class="flex items-center justify-between gap-3 py-2.5">
+                <div class="flex min-w-0 items-center gap-3">
                   <span class="text-lg">{{ key.label?.includes('Claude') ? '🤖' : key.label?.includes('ChatGPT') ? '💬' : '🔑' }}</span>
                   <div class="min-w-0">
-                    <p class="text-sm font-medium text-gray-700 truncate">{{ key.label }}</p>
+                    <p class="truncate text-sm font-medium text-gray-700">{{ key.label }}</p>
                     <p class="font-mono text-xs text-gray-400">{{ key.key_prefix }}…</p>
                   </div>
                 </div>
-                <div class="flex items-center gap-3 shrink-0">
-                  <span v-if="key.last_used" class="text-xs text-emerald-600">
-                    Usado {{ new Date(key.last_used).toLocaleDateString('es-PE') }}
-                  </span>
+                <div class="flex shrink-0 items-center gap-3">
+                  <span v-if="key.last_used" class="text-xs text-emerald-600">Usado {{ new Date(key.last_used).toLocaleDateString('es-PE') }}</span>
                   <span v-else class="text-xs text-gray-400">Sin usar</span>
-                  <button class="text-xs text-red-400 hover:text-red-600 transition-colors" @click="deleteApiKey(key.id)">
-                    Desconectar
-                  </button>
+                  <button class="text-xs text-red-400 transition-colors hover:text-red-600" @click="deleteApiKey(key.id)">Desconectar</button>
                 </div>
               </div>
             </div>
           </div>
+
+          <p class="flex items-start gap-2 text-xs text-gray-400">
+            <span>🔒</span>
+            Tu URL funciona como una contraseña: no la compartas. Si la pierdes o crees que alguien la vio, desconéctala y genera otra.
+          </p>
         </section>
 
         <!-- ========== OBJETIVOS ========== -->
@@ -592,12 +629,9 @@ const { signOut } = useAuth()
               </div>
             </div>
 
-            <div class="flex items-center justify-between">
-              <button class="md:hidden text-sm text-red-400 hover:text-red-600 transition-colors" @click="signOut">
-                Cerrar sesión
-              </button>
+            <div class="flex justify-end">
               <button
-                class="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-5 py-2.5 rounded-xl transition-colors text-sm"
+                class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-5 py-2.5 rounded-xl transition-colors text-sm"
                 :disabled="saving"
                 @click="saveProfile()"
               >
@@ -611,108 +645,73 @@ const { signOut } = useAuth()
 
     <!-- ==================== CONNECTION MODAL ==================== -->
     <Teleport to="body">
-      <div v-if="showKeyModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-          <template v-if="connectingTo === 'claude'">
-            <div class="flex items-center gap-3 mb-4">
-              <div class="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center text-xl">🤖</div>
-              <div>
-                <h3 class="font-bold text-lg text-gray-900">Conectar con Claude</h3>
-                <p class="text-xs text-gray-500">Solo 2 pasos para empezar</p>
-              </div>
+      <div
+        v-if="showKeyModal && activePlatform"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+        @click.self="closeModal"
+      >
+        <div class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+          <div class="mb-5 flex items-center gap-3">
+            <div class="flex h-11 w-11 items-center justify-center rounded-xl text-xl" :class="activePlatform.iconClass">{{ activePlatform.icon }}</div>
+            <div>
+              <h3 class="text-lg font-bold text-gray-900">Conectar con {{ activePlatform.name }}</h3>
+              <p class="text-xs text-gray-500">Funciona en {{ activePlatform.where }}</p>
             </div>
+          </div>
 
-            <div class="mb-4 p-4 bg-violet-50 rounded-xl border border-violet-100">
-              <div class="flex items-center gap-2 mb-2">
-                <span class="w-6 h-6 bg-violet-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
-                <span class="font-medium text-sm text-gray-900">Instalar en Claude Desktop</span>
-              </div>
-              <p class="text-xs text-gray-500 mb-3 ml-8">Haz clic y Claude Desktop configurará todo automáticamente.</p>
-              <a
-                :href="claudeDeepLink"
-                class="ml-8 inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-medium px-5 py-2.5 rounded-xl transition-colors text-sm"
-              >
-                ⚡ Instalar en Claude Desktop
-              </a>
-            </div>
-
-            <div class="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <div class="flex items-center gap-2 mb-2">
-                <span class="w-6 h-6 bg-gray-700 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
-                <span class="font-medium text-sm text-gray-900">Tu API Key</span>
-              </div>
-              <p class="text-xs text-gray-500 mb-2 ml-8">Guarda esta key — no se mostrará de nuevo.</p>
-              <div class="ml-8 flex items-center gap-2">
-                <code class="flex-1 p-2.5 bg-white border border-gray-200 rounded-lg font-mono text-xs break-all select-all">{{ generatedKey }}</code>
-                <button class="shrink-0 p-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" @click="copyToClipboard(generatedKey, 'key')">
-                  <span v-if="copied === 'key'" class="text-emerald-600 text-xs">✓</span>
-                  <span v-else class="text-gray-500 text-xs">📋</span>
+          <ol class="space-y-4">
+            <li class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p class="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900">
+                <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-xs font-bold text-white">1</span>
+                Copia tu URL personal
+              </p>
+              <div class="flex items-stretch gap-2">
+                <code class="flex-1 select-all break-all rounded-lg border border-gray-200 bg-white p-2.5 font-mono text-xs text-gray-700">{{ mcpUrl }}</code>
+                <button
+                  class="shrink-0 rounded-lg px-3 text-sm font-medium transition-colors"
+                  :class="copied === 'url' ? 'bg-emerald-100 text-emerald-700' : activePlatform.buttonClass"
+                  @click="copyToClipboard(mcpUrl, 'url')"
+                >
+                  {{ copied === 'url' ? '✓ Copiada' : 'Copiar' }}
                 </button>
               </div>
-            </div>
+              <p class="mt-2 text-xs text-amber-600">⚠️ Solo se muestra esta vez. Guárdala antes de cerrar.</p>
+            </li>
 
-            <details class="mb-4">
-              <summary class="text-xs text-gray-400 cursor-pointer hover:text-gray-600 transition-colors">¿Prefieres configurar manualmente?</summary>
-              <div class="mt-2 p-3 bg-gray-50 rounded-xl">
-                <p class="text-xs text-gray-500 mb-2">
-                  Copia este JSON en tu <code class="bg-gray-200 px-1 rounded">claude_desktop_config.json</code>:
-                </p>
-                <div class="relative">
-                  <pre class="p-3 bg-gray-900 text-gray-100 rounded-lg text-xs overflow-x-auto">{{ claudeConfig }}</pre>
-                  <button
-                    class="absolute top-2 right-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded transition-colors"
-                    @click="copyToClipboard(claudeConfig, 'config')"
-                  >
-                    {{ copied === 'config' ? '✓ Copiado' : 'Copiar' }}
-                  </button>
-                </div>
-              </div>
-            </details>
-
-            <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-              <p class="font-medium text-sm text-emerald-800 mb-2">¡Listo! Prueba decirle a Claude:</p>
-              <ul class="space-y-1 text-xs text-emerald-700">
-                <li>💬 "Hoy peso 75 kg"</li>
-                <li>💬 "Desayuné 2 huevos y un pan con palta"</li>
-                <li>💬 "Tomé un vaso de agua"</li>
-                <li>💬 "¿Cómo va mi semana?"</li>
-              </ul>
-            </div>
-          </template>
-
-          <template v-else-if="connectingTo === 'chatgpt'">
-            <div class="flex items-center gap-3 mb-4">
-              <div class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-xl">💬</div>
-              <div>
-                <h3 class="font-bold text-lg text-gray-900">Conectar con ChatGPT</h3>
-                <p class="text-xs text-gray-500">Usa tu API Key en un GPT personalizado</p>
-              </div>
-            </div>
-
-            <div class="mb-4 p-4 bg-green-50 rounded-xl border border-green-100">
-              <p class="font-medium text-sm text-gray-900 mb-2">Tu API Key</p>
-              <p class="text-xs text-gray-500 mb-2">Guarda esta key — no se mostrará de nuevo.</p>
-              <div class="flex items-center gap-2">
-                <code class="flex-1 p-2.5 bg-white border border-gray-200 rounded-lg font-mono text-xs break-all select-all">{{ generatedKey }}</code>
-                <button class="shrink-0 p-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" @click="copyToClipboard(generatedKey, 'key')">
-                  <span v-if="copied === 'key'" class="text-emerald-600 text-xs">✓</span>
-                  <span v-else class="text-gray-500 text-xs">📋</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="p-4 bg-amber-50 rounded-xl border border-amber-100">
-              <p class="font-medium text-sm text-amber-800 mb-2">Cómo usarlo en ChatGPT:</p>
-              <ol class="space-y-2 text-xs text-amber-700 list-decimal list-inside">
-                <li>Crea un GPT personalizado en ChatGPT</li>
-                <li>En "Actions", configura la API de GoFit con esta key como Bearer token</li>
-                <li>Los endpoints están en: <code class="bg-amber-100 px-1 rounded">{{ config.public.siteUrl }}/api/</code></li>
-                <li>Pega el prompt de "Mi entrenador" en sus Instrucciones</li>
+            <li class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p class="mb-3 flex items-center gap-2 text-sm font-medium text-gray-900">
+                <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-xs font-bold text-white">2</span>
+                Pégala en {{ activePlatform.name }}
+              </p>
+              <ol class="ml-8 space-y-2">
+                <li v-for="(step, i) in activePlatform.steps" :key="i" class="flex gap-2 text-sm text-gray-600">
+                  <span class="shrink-0 text-gray-400">{{ String.fromCharCode(97 + i) }}.</span>
+                  {{ step }}
+                </li>
               </ol>
-            </div>
-          </template>
+              <a
+                :href="activePlatform.link"
+                target="_blank"
+                rel="noopener"
+                class="ml-8 mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900"
+              >
+                Abrir {{ activePlatform.name }} ↗
+              </a>
+              <p class="ml-8 mt-2 text-[11px] leading-snug text-gray-400">Los nombres de los menús pueden variar un poco según la versión de la app.</p>
+            </li>
 
-          <button class="mt-4 w-full btn-secondary justify-center" @click="closeModal">Cerrar</button>
+            <li class="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+              <p class="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-900">
+                <span class="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">3</span>
+                Pruébalo
+              </p>
+              <div class="ml-8 flex flex-wrap gap-1.5">
+                <span v-for="ex in examplePhrases" :key="ex" class="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs text-emerald-800">"{{ ex }}"</span>
+              </div>
+            </li>
+          </ol>
+
+          <button class="btn-secondary mt-5 w-full justify-center" @click="closeModal">Listo</button>
         </div>
       </div>
     </Teleport>

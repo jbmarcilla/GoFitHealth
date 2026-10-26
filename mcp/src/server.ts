@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { ToolContext } from './context.js'
 import { registerWeightTools } from './tools/weight.js'
 import { registerMealTools } from './tools/meals.js'
 import { registerWaterTools } from './tools/water.js'
@@ -9,20 +10,20 @@ import { registerReportTools } from './tools/report.js'
 import { registerEntryTools } from './tools/entries.js'
 import { SERVER_INSTRUCTIONS } from './coach.js'
 
-export function createServer() {
+export function createServer(ctx: ToolContext) {
   const server = new McpServer(
     { name: 'gofit-health', version: '1.0.0' },
     { instructions: SERVER_INSTRUCTIONS },
   )
 
-  registerWeightTools(server)
-  registerMealTools(server)
-  registerWaterTools(server)
-  registerExerciseTools(server)
-  registerStatusTools(server)
-  registerGoalTools(server)
-  registerReportTools(server)
-  registerEntryTools(server)
+  registerWeightTools(server, ctx)
+  registerMealTools(server, ctx)
+  registerWaterTools(server, ctx)
+  registerExerciseTools(server, ctx)
+  registerStatusTools(server, ctx)
+  registerGoalTools(server, ctx)
+  registerReportTools(server, ctx)
+  registerEntryTools(server, ctx)
 
   return server
 }

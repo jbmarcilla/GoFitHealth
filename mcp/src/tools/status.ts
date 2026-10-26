@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { supabase } from '../db.js'
-import { getUserId } from '../auth.js'
+import type { ToolContext } from '../context.js'
 import { getCoachContext, resolveDate } from '../coach.js'
 
 const MEAL_LABELS: Record<string, string> = {
@@ -29,22 +28,22 @@ function getWeekRange(offset: number): { from: string; to: string } {
   }
 }
 
-export function registerStatusTools(server: McpServer) {
+export function registerStatusTools(server: McpServer, ctx: ToolContext) {
   server.tool(
     'get_today_status',
     'Llamar al inicio de cada conversación. Resumen de hoy (peso, comidas, agua, ejercicio), qué falta registrar y la personalidad de entrenador que eligió el usuario.',
     {},
     async () => {
-      const userId = await getUserId()
-      const today = await resolveDate(userId)
+      const userId = await ctx.userId()
+      const today = await resolveDate(ctx, userId)
 
       const [weightRes, mealsRes, waterRes, exercisesRes, goalRes, coach] = await Promise.all([
-        supabase.from('weight_logs').select('*').eq('user_id', userId).eq('date', today).maybeSingle(),
-        supabase.from('meal_logs').select('*').eq('user_id', userId).eq('date', today).order('created_at'),
-        supabase.from('water_logs').select('amount_ml').eq('user_id', userId).eq('date', today),
-        supabase.from('exercise_logs').select('*').eq('user_id', userId).eq('date', today),
-        supabase.from('goals').select('*').eq('user_id', userId).eq('active', true).maybeSingle(),
-        getCoachContext(userId),
+        ctx.db.from('weight_logs').select('*').eq('user_id', userId).eq('date', today).maybeSingle(),
+        ctx.db.from('meal_logs').select('*').eq('user_id', userId).eq('date', today).order('created_at'),
+        ctx.db.from('water_logs').select('amount_ml').eq('user_id', userId).eq('date', today),
+        ctx.db.from('exercise_logs').select('*').eq('user_id', userId).eq('date', today),
+        ctx.db.from('goals').select('*').eq('user_id', userId).eq('active', true).maybeSingle(),
+        getCoachContext(ctx, userId),
       ])
 
       const weight = weightRes.data
@@ -167,15 +166,15 @@ export function registerStatusTools(server: McpServer) {
       week_offset: z.number().int().default(0).describe('0 = semana actual, -1 = semana pasada, etc.'),
     },
     async ({ week_offset }) => {
-      const userId = await getUserId()
+      const userId = await ctx.userId()
       const { from, to } = getWeekRange(week_offset)
 
       const [weightsRes, mealsRes, waterRes, exercisesRes, goalRes] = await Promise.all([
-        supabase.from('weight_logs').select('date, weight_kg').eq('user_id', userId).gte('date', from).lte('date', to).order('date'),
-        supabase.from('meal_logs').select('date, estimated_calories, meal_type').eq('user_id', userId).gte('date', from).lte('date', to),
-        supabase.from('water_logs').select('date, amount_ml').eq('user_id', userId).gte('date', from).lte('date', to),
-        supabase.from('exercise_logs').select('date, calories_burned, duration_minutes').eq('user_id', userId).gte('date', from).lte('date', to),
-        supabase.from('goals').select('daily_water_ml, daily_calorie_target').eq('user_id', userId).eq('active', true).maybeSingle(),
+        ctx.db.from('weight_logs').select('date, weight_kg').eq('user_id', userId).gte('date', from).lte('date', to).order('date'),
+        ctx.db.from('meal_logs').select('date, estimated_calories, meal_type').eq('user_id', userId).gte('date', from).lte('date', to),
+        ctx.db.from('water_logs').select('date, amount_ml').eq('user_id', userId).gte('date', from).lte('date', to),
+        ctx.db.from('exercise_logs').select('date, calories_burned, duration_minutes').eq('user_id', userId).gte('date', from).lte('date', to),
+        ctx.db.from('goals').select('daily_water_ml, daily_calorie_target').eq('user_id', userId).eq('active', true).maybeSingle(),
       ])
 
       const weights = weightsRes.data ?? []

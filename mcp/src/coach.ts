@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { supabase } from './db.js'
+import type { ToolContext } from './context.js'
 
 export const dateParam = z
   .string()
@@ -7,14 +7,9 @@ export const dateParam = z
   .optional()
   .describe('Fecha YYYY-MM-DD. Omitir = hoy en la hora local del usuario. Úsala para registrar días anteriores (ej. "ayer").')
 
-let _timezone: string | null = null
-
-export async function getTimezone(userId: string): Promise<string> {
-  if (_timezone) return _timezone
-  const { data } = await supabase.from('profiles').select('timezone').eq('id', userId).maybeSingle()
-  const tz: string = data?.timezone || 'America/Lima'
-  _timezone = tz
-  return tz
+export async function getTimezone(ctx: ToolContext, userId: string): Promise<string> {
+  const { data } = await ctx.db.from('profiles').select('timezone').eq('id', userId).maybeSingle()
+  return data?.timezone || 'America/Lima'
 }
 
 export function localDate(timezone: string, offsetDays = 0): string {
@@ -22,8 +17,8 @@ export function localDate(timezone: string, offsetDays = 0): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(d)
 }
 
-export async function resolveDate(userId: string, date?: string): Promise<string> {
-  return date ?? localDate(await getTimezone(userId))
+export async function resolveDate(ctx: ToolContext, userId: string, date?: string): Promise<string> {
+  return date ?? localDate(await getTimezone(ctx, userId))
 }
 
 export const SERVER_INSTRUCTIONS = `Eres el entrenador personal del usuario dentro de GoFit Health.
@@ -44,10 +39,10 @@ Reglas:
 - Para corregir o borrar algo, usa get_day_log para ver los registros con su id y luego update_entry o delete_entry. Confirma con el usuario antes de borrar.
 - La densidad calórica es informativa: ningún alimento es "malo".`
 
-export async function getCoachContext(userId: string) {
+export async function getCoachContext(ctx: ToolContext, userId: string) {
   const [profileRes, anyWeightRes] = await Promise.all([
-    supabase.from('profiles').select('trainer_prompt, timezone, display_name').eq('id', userId).maybeSingle(),
-    supabase.from('weight_logs').select('weight_kg, date').eq('user_id', userId).order('date', { ascending: false }).limit(1),
+    ctx.db.from('profiles').select('trainer_prompt, timezone, display_name').eq('id', userId).maybeSingle(),
+    ctx.db.from('weight_logs').select('weight_kg, date').eq('user_id', userId).order('date', { ascending: false }).limit(1),
   ])
 
   const profile = profileRes.data

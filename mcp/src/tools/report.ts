@@ -1,10 +1,8 @@
 import { z } from 'zod'
-import { randomBytes } from 'crypto'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { supabase } from '../db.js'
-import { getUserId } from '../auth.js'
+import type { ToolContext } from '../context.js'
 
-export function registerReportTools(server: McpServer) {
+export function registerReportTools(server: McpServer, ctx: ToolContext) {
   server.tool(
     'generate_report_link',
     'Generar un link público compartible con tu progreso. Expira en 7 días.',
@@ -12,13 +10,13 @@ export function registerReportTools(server: McpServer) {
       scope: z.enum(['weekly', 'monthly']).default('weekly').describe('Alcance del reporte'),
     },
     async ({ scope }) => {
-      const userId = await getUserId()
-      const token = randomBytes(24).toString('hex')
+      const userId = await ctx.userId()
+      const token = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('')
 
       const expiresAt = new Date()
       expiresAt.setDate(expiresAt.getDate() + 7)
 
-      const { error } = await supabase.from('report_tokens').insert({
+      const { error } = await ctx.db.from('report_tokens').insert({
         token,
         user_id: userId,
         scope,
@@ -27,7 +25,7 @@ export function registerReportTools(server: McpServer) {
 
       if (error) return { content: [{ type: 'text' as const, text: `Error: ${error.message}` }] }
 
-      const siteUrl = process.env.GOFIT_SITE_URL ?? 'https://gofit.health'
+      const siteUrl = ctx.siteUrl
 
       return {
         content: [{

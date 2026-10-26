@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { supabase } from '../db.js'
-import { getUserId } from '../auth.js'
+import type { ToolContext } from '../context.js'
 import { dateParam, resolveDate } from '../coach.js'
 
 const TABLES = {
@@ -24,20 +23,20 @@ function text(t: string) {
   return { content: [{ type: 'text' as const, text: t }] }
 }
 
-export function registerEntryTools(server: McpServer) {
+export function registerEntryTools(server: McpServer, ctx: ToolContext) {
   server.tool(
     'get_day_log',
     'Listar todos los registros de un día con su id (peso, comidas, agua, ejercicio). Úsalo antes de update_entry o delete_entry.',
     { date: dateParam },
     async ({ date }) => {
-      const userId = await getUserId()
-      const day = await resolveDate(userId, date)
+      const userId = await ctx.userId()
+      const day = await resolveDate(ctx, userId, date)
 
       const [w, m, wa, e] = await Promise.all([
-        supabase.from('weight_logs').select('id, weight_kg').eq('user_id', userId).eq('date', day),
-        supabase.from('meal_logs').select('id, meal_type, food_name, quantity, unit, estimated_calories').eq('user_id', userId).eq('date', day).order('created_at'),
-        supabase.from('water_logs').select('id, amount_ml').eq('user_id', userId).eq('date', day).order('created_at'),
-        supabase.from('exercise_logs').select('id, exercise_name, duration_minutes, calories_burned').eq('user_id', userId).eq('date', day).order('created_at'),
+        ctx.db.from('weight_logs').select('id, weight_kg').eq('user_id', userId).eq('date', day),
+        ctx.db.from('meal_logs').select('id, meal_type, food_name, quantity, unit, estimated_calories').eq('user_id', userId).eq('date', day).order('created_at'),
+        ctx.db.from('water_logs').select('id, amount_ml').eq('user_id', userId).eq('date', day).order('created_at'),
+        ctx.db.from('exercise_logs').select('id, exercise_name, duration_minutes, calories_burned').eq('user_id', userId).eq('date', day).order('created_at'),
       ])
 
       let out = `🗓️ Registros del ${day}:\n`
@@ -60,11 +59,11 @@ export function registerEntryTools(server: McpServer) {
       ),
     },
     async ({ type, id, changes }) => {
-      const userId = await getUserId()
+      const userId = await ctx.userId()
       const updates = Object.fromEntries(Object.entries(changes).filter(([k]) => EDITABLE[type].includes(k)))
       if (!Object.keys(updates).length) return text(`⚠️ Ningún campo válido para ${type}. Permitidos: ${EDITABLE[type].join(', ')}`)
 
-      const { data, error } = await supabase
+      const { data, error } = await ctx.db
         .from(TABLES[type])
         .update(updates)
         .eq('id', id)
@@ -82,8 +81,8 @@ export function registerEntryTools(server: McpServer) {
     'Eliminar un registro equivocado (por id de get_day_log). Confirma con el usuario antes de llamar.',
     { type: entryType, id: z.string().uuid().describe('Id del registro') },
     async ({ type, id }) => {
-      const userId = await getUserId()
-      const { data, error } = await supabase
+      const userId = await ctx.userId()
+      const { data, error } = await ctx.db
         .from(TABLES[type])
         .delete()
         .eq('id', id)

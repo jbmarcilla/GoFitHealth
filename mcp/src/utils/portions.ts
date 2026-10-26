@@ -1,4 +1,4 @@
-import { supabase } from '../db.js'
+import type { ToolContext } from '../context.js'
 
 const DEFAULT_GRAMS: Record<string, number> = {
   puno: 90,
@@ -10,12 +10,13 @@ const DEFAULT_GRAMS: Record<string, number> = {
 }
 
 export async function resolvePortionGrams(
+  ctx: ToolContext,
   portionType: string,
   foodId?: string | null,
   foodCategory?: string | null,
 ): Promise<number> {
   if (foodId) {
-    const { data } = await supabase
+    const { data } = await ctx.db
       .from('portion_references')
       .select('grams_equivalent')
       .eq('food_id', foodId)
@@ -26,7 +27,7 @@ export async function resolvePortionGrams(
   }
 
   if (foodCategory) {
-    const { data } = await supabase
+    const { data } = await ctx.db
       .from('portion_references')
       .select('grams_equivalent')
       .eq('food_category', foodCategory)

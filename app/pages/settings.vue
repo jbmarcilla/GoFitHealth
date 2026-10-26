@@ -13,20 +13,47 @@ const copied = ref('')
 
 const { data: profile, refresh: refreshProfile } = await useFetch('/api/me/profile')
 const { data: apiKeys, refresh: refreshKeys } = await useFetch<any[]>('/api/me/api-keys')
+const { data: currentGoal, refresh: refreshGoal } = await useFetch<any>('/api/goals')
+const { data: latestWeight } = await useFetch<any[]>('/api/weight', { params: { limit: 1 } })
 
 const googleName = computed(() => user.value?.user_metadata?.full_name || user.value?.user_metadata?.name || '')
 const googleAvatar = computed(() => user.value?.user_metadata?.avatar_url || '')
 const googleEmail = computed(() => user.value?.email || '')
+
+const currentWeightKg = computed(() => {
+  if (!latestWeight.value?.length) return null
+  return latestWeight.value[0].weight_kg
+})
 
 const form = reactive({
   measurement_system: 'grams' as string,
   cooking_preference: 'simple' as string,
 })
 
+const goalForm = reactive({
+  goal_type: 'athletic' as string,
+  target_weight_kg: null as number | null,
+  target_muscle_mass_kg: null as number | null,
+  daily_calorie_target: null as number | null,
+  daily_water_ml: 2000 as number,
+})
+
+const savingGoal = ref(false)
+
 watch(profile, (p: any) => {
   if (p) {
     form.measurement_system = p.measurement_system || 'grams'
     form.cooking_preference = p.cooking_preference || 'simple'
+  }
+}, { immediate: true })
+
+watch(currentGoal, (g: any) => {
+  if (g) {
+    goalForm.goal_type = g.goal_type || 'athletic'
+    goalForm.target_weight_kg = g.target_weight_kg || null
+    goalForm.target_muscle_mass_kg = g.target_muscle_mass_kg || null
+    goalForm.daily_calorie_target = g.daily_calorie_target || null
+    goalForm.daily_water_ml = g.daily_water_ml || 2000
   }
 }, { immediate: true })
 
@@ -51,6 +78,28 @@ async function saveProfile() {
     message.value = `Error: ${e.data?.message || e.message}`
   }
   saving.value = false
+}
+
+async function saveGoal() {
+  savingGoal.value = true
+  message.value = ''
+  try {
+    await $fetch('/api/goals', { method: 'POST', body: goalForm })
+    message.value = 'Objetivo actualizado'
+    await refreshGoal()
+  } catch (e: any) {
+    message.value = `Error: ${e.data?.message || e.message}`
+  }
+  savingGoal.value = false
+}
+
+const goalTypeLabels: Record<string, string> = {
+  athletic: 'Rendimiento atlético',
+  muscular: 'Ganar masa muscular',
+  lean: 'Definición / lean',
+  maintain: 'Mantener peso',
+  lose_weight: 'Bajar de peso',
+  gain_weight: 'Subir de peso',
 }
 
 async function connectTo(platform: 'claude' | 'chatgpt') {
@@ -382,6 +431,72 @@ const { signOut } = useAuth()
         </div>
       </div>
     </Teleport>
+
+    <!-- ==================== OBJETIVOS ==================== -->
+    <section class="card mb-8">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-xl">🎯</span>
+        <h2 class="font-semibold text-lg text-gray-900">Mis objetivos</h2>
+      </div>
+      <p class="text-xs text-gray-400 mb-5">Define tus metas para que GoFit te acompañe mejor.</p>
+
+      <!-- Current weight display -->
+      <div class="mb-5 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-medium text-blue-500 uppercase tracking-wider">Peso actual</span>
+            <p class="text-2xl font-bold text-gray-900 mt-0.5">
+              {{ currentWeightKg ? `${currentWeightKg} kg` : 'Sin registrar' }}
+            </p>
+          </div>
+          <div v-if="currentWeightKg && goalForm.target_weight_kg" class="text-right">
+            <span class="text-xs font-medium text-gray-400">Faltan</span>
+            <p class="text-lg font-semibold" :class="Number(currentWeightKg) > goalForm.target_weight_kg ? 'text-amber-600' : 'text-emerald-600'">
+              {{ Math.abs(Number(currentWeightKg) - goalForm.target_weight_kg).toFixed(1) }} kg
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs font-medium text-gray-500 mb-1.5 block">Mi objetivo</label>
+          <select v-model="goalForm.goal_type" class="input">
+            <option v-for="(label, key) in goalTypeLabels" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1.5 block">Peso objetivo (kg)</label>
+            <input v-model.number="goalForm.target_weight_kg" type="number" step="0.1" min="30" max="300" class="input" placeholder="70.0" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1.5 block">Masa muscular objetivo (kg)</label>
+            <input v-model.number="goalForm.target_muscle_mass_kg" type="number" step="0.1" min="10" max="150" class="input" placeholder="35.0" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1.5 block">Calorías diarias</label>
+            <input v-model.number="goalForm.daily_calorie_target" type="number" step="50" min="800" max="8000" class="input" placeholder="2000" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-500 mb-1.5 block">Agua diaria (ml)</label>
+            <input v-model.number="goalForm.daily_water_ml" type="number" step="100" min="500" max="10000" class="input" placeholder="2000" />
+          </div>
+        </div>
+
+        <button
+          class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 rounded-xl transition-colors text-sm"
+          :disabled="savingGoal"
+          @click="saveGoal"
+        >
+          {{ savingGoal ? 'Guardando...' : 'Guardar objetivo' }}
+        </button>
+      </div>
+    </section>
 
     <!-- ==================== PERFIL ==================== -->
     <section class="card mb-6">

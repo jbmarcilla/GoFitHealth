@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
     .single()
 
   if (error) {
-    throw createError({ statusCode: 500, message: 'Error al crear API key' })
+    throw createError({ statusCode: 500, message: `Error al crear API key: ${error.message}` })
   }
 
   return { ...data, key: rawKey }

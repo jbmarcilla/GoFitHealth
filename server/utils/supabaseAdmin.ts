@@ -1,14 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
-let _client: ReturnType<typeof createClient> | null = null
-
 export function useSupabaseAdmin() {
-  if (!_client) {
-    _client = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } },
-    )
+  const config = useRuntimeConfig()
+  const url = (config.public as any).supabase?.url || process.env.SUPABASE_URL || ''
+  const key = (config as any).supabase?.serviceKey || config.supabaseServiceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+
+  if (!url || !key) {
+    throw createError({ statusCode: 500, message: 'Supabase URL o Service Role Key no configurada' })
   }
-  return _client
+
+  return createClient(url, key, { auth: { persistSession: false } })
 }

@@ -1,3 +1,5 @@
+import { summarizeNutrition } from '../../../mcp/src/nutrition'
+
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const admin = useSupabaseAdmin()
@@ -8,7 +10,7 @@ export default defineEventHandler(async (event) => {
     admin.from('meal_logs').select('*').eq('user_id', user.id).eq('date', today).order('created_at'),
     admin.from('water_logs').select('amount_ml').eq('user_id', user.id).eq('date', today),
     admin.from('exercise_logs').select('*').eq('user_id', user.id).eq('date', today).order('created_at'),
-    admin.from('goals').select('goal_type, target_weight_kg, target_muscle_mass_kg, daily_calorie_target, daily_water_ml').eq('user_id', user.id).eq('active', true).maybeSingle(),
+    admin.from('goals').select('goal_type, target_weight_kg, target_muscle_mass_kg, daily_calorie_target, daily_protein_g, daily_water_ml').eq('user_id', user.id).eq('active', true).maybeSingle(),
   ])
 
   const meals = mealsRes.data || []
@@ -37,5 +39,6 @@ export default defineEventHandler(async (event) => {
     missing,
     goal: goalRes.data,
     date: today,
+    nutrition: meals.length ? await summarizeNutrition(admin as any, user.id, today, today, 1) : null,
   }
 })

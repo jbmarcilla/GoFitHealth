@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
       target_weight_kg: body.target_weight_kg || null,
       target_muscle_mass_kg: body.target_muscle_mass_kg || null,
       daily_calorie_target: body.daily_calorie_target || null,
+      daily_protein_g: body.daily_protein_g || null,
       daily_water_ml: body.daily_water_ml || 2000,
       notes: body.notes || null,
     })

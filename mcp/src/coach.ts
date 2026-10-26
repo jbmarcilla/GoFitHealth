@@ -40,6 +40,8 @@ Reglas:
 - Para corregir o borrar algo, usa get_day_log para ver los registros con su id y luego update_entry o delete_entry. Confirma con el usuario antes de borrar.
 - Si no sabes dónde está, pregúntale en qué ciudad y país está y guárdalo con set_location. Si menciona que viajó o está en otra ciudad/país, actualízalo con set_location.
 - Sugiere comidas típicas y fáciles de conseguir en su ubicación actual. Al agregar un alimento local con add_food, incluye su country_code.
+- Nutrición: cada comida guarda gramos, calorías, macros y micronutrientes según la cantidad. Si un alimento no está en la DB, agrégalo con add_food incluyendo sus micronutrientes por 100 g (vitaminas, minerales, sodio, azúcar...) con los valores típicos que conozcas; si ya existe pero no tiene micronutrientes, complétalos con set_food_nutrients. Si detectas un nutriente que no está en el catálogo, regístralo con add_nutrient.
+- Cuando pregunte cuánto está consumiendo o cómo va su nutrición, usa get_nutrition_summary y comenta lo que va bajo o se pasa, sugiriendo alimentos locales.
 - La densidad calórica es informativa: ningún alimento es "malo".`
 
 export async function getCoachContext(ctx: ToolContext, userId: string) {

@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { ToolContext } from '../context.js'
 import { getCoachContext, resolveDate } from '../coach.js'
 import { formatLocation } from '../location.js'
+import { summarizeNutrition } from '../nutrition.js'
 
 const MEAL_LABELS: Record<string, string> = {
   breakfast: 'Desayuno',
@@ -101,6 +102,15 @@ export function registerStatusTools(server: McpServer, ctx: ToolContext) {
       }
       if (calorieGoal > 0) {
         text += `  Meta: ${caloriesIn}/${calorieGoal} kcal (${Math.round((caloriesIn / calorieGoal) * 100)}%)\n`
+      }
+      if (meals.length) {
+        const n = await summarizeNutrition(ctx.db, userId, today, today, 1)
+        const proteinGoal = goal?.daily_protein_g ? ` / ${goal.daily_protein_g}` : ''
+        text += `  Macros: P ${n.protein_g}${proteinGoal} g · C ${n.carbs_g} g · G ${n.fat_g} g · Fibra ${n.fiber_g} g\n`
+        const micro = n.nutrients.filter(x => x.key !== 'fiber')
+        const low = micro.filter(x => x.percent !== null && !x.is_limit && x.percent < 50).map(x => x.name)
+        const high = micro.filter(x => x.percent !== null && x.is_limit && x.percent > 100).map(x => x.name)
+        if (micro.length) text += `  Micronutrientes: ${micro.length} registrados${low.length ? ` · bajo en ${low.join(', ')}` : ''}${high.length ? ` · exceso de ${high.join(', ')}` : ''} (detalle: get_nutrition_summary)\n`
       }
 
       text += `\n💧 Agua: ${waterTotal}/${waterGoal}ml (${Math.round((waterTotal / waterGoal) * 100)}%)\n`

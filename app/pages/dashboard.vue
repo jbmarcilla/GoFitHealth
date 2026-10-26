@@ -108,7 +108,8 @@ const fmt = (n: number) => n.toLocaleString('es-PE')
     </div>
 
     <div class="mb-6 grid gap-4 lg:grid-cols-5">
-      <div class="lg:col-span-3">
+      <div class="space-y-4 lg:col-span-3">
+        <DashboardNutritionToday :nutrition="status?.nutrition ?? null" :protein-goal="goal?.daily_protein_g ?? null" />
         <DashboardMealLog :meals="status?.meals ?? []" />
       </div>
       <div class="space-y-4 lg:col-span-2">

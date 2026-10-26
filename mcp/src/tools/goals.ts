@@ -20,10 +20,11 @@ export function registerGoalTools(server: McpServer, ctx: ToolContext) {
       target_weight_kg: z.number().positive().optional().describe('Peso objetivo en kg'),
       target_muscle_mass_kg: z.number().positive().optional().describe('Masa muscular objetivo en kg'),
       daily_calorie_target: z.number().int().positive().optional().describe('Meta de calorías diarias'),
+      daily_protein_g: z.number().int().positive().optional().describe('Meta de proteína diaria en g (≈1.6–2.2 g por kg si busca músculo)'),
       daily_water_ml: z.number().int().positive().optional().describe('Meta de agua diaria en ml (default: 2000)'),
       notes: z.string().optional().describe('Notas o detalles del objetivo'),
     },
-    async ({ goal_type, target_weight_kg, target_muscle_mass_kg, daily_calorie_target, daily_water_ml, notes }) => {
+    async ({ goal_type, target_weight_kg, target_muscle_mass_kg, daily_calorie_target, daily_protein_g, daily_water_ml, notes }) => {
       const userId = await ctx.userId()
 
       await ctx.db
@@ -40,6 +41,7 @@ export function registerGoalTools(server: McpServer, ctx: ToolContext) {
           target_weight_kg,
           target_muscle_mass_kg,
           daily_calorie_target,
+          daily_protein_g,
           daily_water_ml: daily_water_ml ?? 2000,
           notes,
           active: true,
@@ -53,6 +55,7 @@ export function registerGoalTools(server: McpServer, ctx: ToolContext) {
       if (target_weight_kg) text += `• Peso objetivo: ${target_weight_kg} kg\n`
       if (target_muscle_mass_kg) text += `• Masa muscular objetivo: ${target_muscle_mass_kg} kg\n`
       if (daily_calorie_target) text += `• Meta calórica: ${daily_calorie_target} kcal/día\n`
+      if (daily_protein_g) text += `• Proteína: ${daily_protein_g} g/día\n`
       text += `• Meta de agua: ${daily_water_ml ?? 2000} ml/día\n`
       if (notes) text += `• Notas: ${notes}\n`
 
@@ -68,6 +71,7 @@ export function registerGoalTools(server: McpServer, ctx: ToolContext) {
       target_weight_kg: z.number().positive().optional().describe('Peso objetivo en kg'),
       target_muscle_mass_kg: z.number().positive().optional().describe('Masa muscular objetivo en kg'),
       daily_calorie_target: z.number().int().positive().optional().describe('Meta de calorías diarias'),
+      daily_protein_g: z.number().int().positive().optional().describe('Meta de proteína diaria en g (≈1.6–2.2 g por kg si busca músculo)'),
       daily_water_ml: z.number().int().positive().optional().describe('Meta de agua diaria en ml'),
       notes: z.string().optional().describe('Notas del objetivo'),
     },
@@ -102,6 +106,7 @@ export function registerGoalTools(server: McpServer, ctx: ToolContext) {
       text += `• Peso objetivo: ${g.target_weight_kg ? `${g.target_weight_kg} kg` : 'sin definir'}\n`
       text += `• Masa muscular objetivo: ${g.target_muscle_mass_kg ? `${g.target_muscle_mass_kg} kg` : 'sin definir'}\n`
       text += `• Calorías: ${g.daily_calorie_target ? `${g.daily_calorie_target} kcal/día` : 'sin definir'}\n`
+      text += `• Proteína: ${g.daily_protein_g ? `${g.daily_protein_g} g/día` : 'sin definir'}\n`
       text += `• Agua: ${g.daily_water_ml} ml/día\n`
 
       return { content: [{ type: 'text' as const, text }] }

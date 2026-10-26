@@ -1,68 +1,57 @@
+import { FOOD_SELECT, type FoodRow, type MealNutrition, insertMealLog, nutritionFromFood, sanitizeNutrients } from '../../../mcp/src/nutrition'
+
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
   const body = await readBody(event)
-  const admin = useSupabaseAdmin()
+  const admin = useSupabaseAdmin() as any
 
   if (!body?.meal_type || !body?.food_name || !body?.quantity || !body?.unit) {
     throw createError({ statusCode: 400, message: 'meal_type, food_name, quantity y unit son requeridos' })
   }
 
-  let calories = body.estimated_calories as number | undefined
-  let protein: number | null = null
-  let carbs: number | null = null
-  let fat: number | null = null
-
+  let food: FoodRow | null = null
   if (body.food_id) {
-    const { data: food } = await admin
-      .from('foods')
-      .select('*')
-      .eq('id', body.food_id)
-      .single()
-
-    if (food) {
-      const estimate = await estimateCalories(
-        food,
-        body.quantity,
-        body.unit,
-        body.food_id,
-        food.food_category,
-      )
-      if (!calories) calories = estimate.estimated_calories
-      const ratio = estimate.estimated_grams / 100
-      protein = Math.round(food.protein_g * ratio * 10) / 10
-      carbs = Math.round(food.carbs_g * ratio * 10) / 10
-      fat = Math.round(food.fat_g * ratio * 10) / 10
-    }
+    const { data } = await admin.from('foods').select(FOOD_SELECT).eq('id', body.food_id).maybeSingle()
+    food = data
+  } else {
+    const { data } = await admin.from('foods').select(FOOD_SELECT).ilike('name', `%${body.food_name}%`).limit(1)
+    food = data?.[0] ?? null
   }
 
-  if (!calories) {
-    throw createError({ statusCode: 400, message: 'No se pudo estimar calorías. Proporciona food_id o estimated_calories.' })
+  let nutrition: MealNutrition
+  if (food) {
+    const estimate = await estimateCalories(food, body.quantity, body.unit, food.id, food.food_category)
+    nutrition = await nutritionFromFood(admin, food, estimate.estimated_grams)
+    if (body.estimated_calories) nutrition.calories = Number(body.estimated_calories)
+  } else {
+    if (!body.estimated_calories) {
+      throw createError({ statusCode: 400, message: 'No encontré ese alimento. Indica las calorías aproximadas.' })
+    }
+    nutrition = {
+      grams: body.unit === 'g' || body.unit === 'ml' ? Number(body.quantity) : null,
+      calories: Number(body.estimated_calories),
+      protein_g: body.protein_g ?? null,
+      carbs_g: body.carbs_g ?? null,
+      fat_g: body.fat_g ?? null,
+      fiber_g: body.fiber_g ?? null,
+      nutrients: await sanitizeNutrients(admin, body.nutrients),
+    }
   }
 
   const today = await userToday(user.id)
 
-  const { data, error } = await admin
-    .from('meal_logs')
-    .insert({
+  try {
+    return await insertMealLog(admin, {
       user_id: user.id,
       date: today,
       meal_type: body.meal_type,
-      food_id: body.food_id || null,
+      food_id: food?.id ?? null,
       food_name: body.food_name,
       quantity: body.quantity,
       unit: body.unit,
-      estimated_calories: calories,
-      estimated_protein: protein,
-      estimated_carbs: carbs,
-      estimated_fat: fat,
       notes: body.notes || null,
-    })
-    .select()
-    .single()
-
-  if (error) {
-    throw createError({ statusCode: 500, message: 'Error al registrar comida' })
+    }, nutrition)
+  } catch (e: any) {
+    throw createError({ statusCode: 500, message: `Error al registrar comida: ${e.message}` })
   }
-
-  return data
 })

@@ -55,6 +55,7 @@ const goalForm = reactive({
   target_weight_kg: null as number | null,
   target_muscle_mass_kg: null as number | null,
   daily_calorie_target: null as number | null,
+  daily_protein_g: null as number | null,
   daily_water_ml: 2000 as number,
 })
 
@@ -72,6 +73,7 @@ watch(currentGoal, (g: any) => {
     goalForm.target_weight_kg = g.target_weight_kg || null
     goalForm.target_muscle_mass_kg = g.target_muscle_mass_kg || null
     goalForm.daily_calorie_target = g.daily_calorie_target || null
+    goalForm.daily_protein_g = g.daily_protein_g || null
     goalForm.daily_water_ml = g.daily_water_ml || 2000
   }
 }, { immediate: true })
@@ -629,7 +631,7 @@ function closeModal() {
           <details class="group rounded-2xl border border-gray-200 bg-white">
             <summary class="flex cursor-pointer list-none items-center justify-between p-6 text-sm font-medium text-gray-900">
               Más metas
-              <span class="text-xs font-normal text-gray-400 group-open:hidden">Tipo de objetivo, masa muscular, calorías y agua</span>
+              <span class="text-xs font-normal text-gray-400 group-open:hidden">Tipo de objetivo, masa muscular, calorías, proteína y agua</span>
               <span class="hidden text-gray-400 group-open:inline">−</span>
             </summary>
             <div class="space-y-5 border-t border-gray-100 p-6">
@@ -648,7 +650,7 @@ function closeModal() {
                   </button>
                 </div>
               </div>
-              <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <label class="block">
                   <span class="mb-1.5 block text-xs font-medium text-gray-500">Masa muscular (kg)</span>
                   <input v-model.number="goalForm.target_muscle_mass_kg" type="number" step="0.1" min="10" max="150" class="input" placeholder="35.0" />
@@ -656,6 +658,10 @@ function closeModal() {
                 <label class="block">
                   <span class="mb-1.5 block text-xs font-medium text-gray-500">Calorías al día</span>
                   <input v-model.number="goalForm.daily_calorie_target" type="number" step="50" min="800" max="8000" class="input" placeholder="2000" />
+                </label>
+                <label class="block">
+                  <span class="mb-1.5 block text-xs font-medium text-gray-500">Proteína al día (g)</span>
+                  <input v-model.number="goalForm.daily_protein_g" type="number" step="5" min="20" max="400" class="input" placeholder="120" />
                 </label>
                 <label class="block">
                   <span class="mb-1.5 block text-xs font-medium text-gray-500">Agua al día (ml)</span>

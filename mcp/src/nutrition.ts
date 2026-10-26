@@ -139,6 +139,30 @@ export async function upsertFoodNutrients(
   return entries.length
 }
 
+/** Recomputes micronutrients for meals of a food that were logged before the food had any. */
+export async function backfillMealNutrients(db: SupabaseClient, foodId: string): Promise<number> {
+  const { data: per100 } = await db.from('food_nutrients').select('nutrient_key, amount_per_100g').eq('food_id', foodId)
+  if (!per100?.length) return 0
+
+  const { data: meals } = await db
+    .from('meal_logs')
+    .select('id, estimated_grams, meal_nutrients(nutrient_key)')
+    .eq('food_id', foodId)
+    .not('estimated_grams', 'is', null)
+  if (!meals?.length) return 0
+
+  const rows: { meal_log_id: string; nutrient_key: string; amount: number }[] = []
+  for (const m of meals as any[]) {
+    if (m.meal_nutrients?.length) continue
+    const ratio = Number(m.estimated_grams) / 100
+    for (const n of per100) rows.push({ meal_log_id: m.id, nutrient_key: n.nutrient_key, amount: round3(Number(n.amount_per_100g) * ratio) })
+  }
+  if (!rows.length) return 0
+  const { error } = await db.from('meal_nutrients').insert(rows)
+  if (error) throw new Error(error.message)
+  return new Set(rows.map(r => r.meal_log_id)).size
+}
+
 export interface NutrientTotal extends NutrientDef {
   amount: number
   percent: number | null

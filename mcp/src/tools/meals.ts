@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { supabase } from '../db.js'
 import { getUserId } from '../auth.js'
 import { resolvePortionGrams } from '../utils/portions.js'
+import { dateParam, resolveDate } from '../coach.js'
 
 const MEAL_LABELS: Record<string, string> = {
   breakfast: 'Desayuno',
@@ -20,7 +21,7 @@ const DENSITY_LABELS: Record<string, string> = {
 export function registerMealTools(server: McpServer) {
   server.tool(
     'log_meal',
-    'Registrar una comida (desayuno, almuerzo, cena o snack). Busca el alimento en la base de datos para calcular calorías automáticamente.',
+    'Registrar una comida (desayuno, almuerzo, cena o snack). Si el usuario no dijo qué comida del día fue, pregúntale antes de llamar. Busca el alimento en la base de datos para calcular calorías automáticamente.',
     {
       meal_type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).describe('Tipo de comida'),
       food_name: z.string().describe('Nombre del alimento (ej: arroz, pollo, ensalada)'),
@@ -28,10 +29,11 @@ export function registerMealTools(server: McpServer) {
       unit: z.enum(['g', 'ml', 'puno', 'taza', 'mano', 'cucharada', 'porcion']).default('porcion').describe('Unidad de medida'),
       estimated_calories: z.number().int().positive().optional().describe('Calorías estimadas (opcional, se calcula si el alimento está en la DB)'),
       notes: z.string().optional().describe('Notas adicionales'),
+      date: dateParam,
     },
-    async ({ meal_type, food_name, quantity, unit, estimated_calories, notes }) => {
+    async ({ meal_type, food_name, quantity, unit, estimated_calories, notes, date }) => {
       const userId = await getUserId()
-      const today = new Date().toISOString().split('T')[0]
+      const today = await resolveDate(userId, date)
 
       let calories = estimated_calories ?? 0
       let foodId: string | null = null
@@ -86,7 +88,7 @@ export function registerMealTools(server: McpServer) {
       return {
         content: [{
           type: 'text' as const,
-          text: `✅ ${MEAL_LABELS[meal_type]}: ${food_name} (${quantity} ${unit}) — ${calories} kcal${densityInfo}`,
+          text: `✅ ${MEAL_LABELS[meal_type]} (${today}): ${food_name} (${quantity} ${unit}) — ${calories} kcal${densityInfo}`,
         }],
       }
     },

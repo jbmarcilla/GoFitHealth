@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { supabase } from '../db.js'
 import { getUserId } from '../auth.js'
+import { getCoachContext, resolveDate } from '../coach.js'
 
 const MEAL_LABELS: Record<string, string> = {
   breakfast: 'Desayuno',
@@ -31,18 +32,19 @@ function getWeekRange(offset: number): { from: string; to: string } {
 export function registerStatusTools(server: McpServer) {
   server.tool(
     'get_today_status',
-    'Ver resumen completo de hoy: peso, comidas, agua, ejercicio. Indica qué falta registrar.',
+    'Llamar al inicio de cada conversación. Resumen de hoy (peso, comidas, agua, ejercicio), qué falta registrar y la personalidad de entrenador que eligió el usuario.',
     {},
     async () => {
       const userId = await getUserId()
-      const today = new Date().toISOString().split('T')[0]
+      const today = await resolveDate(userId)
 
-      const [weightRes, mealsRes, waterRes, exercisesRes, goalRes] = await Promise.all([
+      const [weightRes, mealsRes, waterRes, exercisesRes, goalRes, coach] = await Promise.all([
         supabase.from('weight_logs').select('*').eq('user_id', userId).eq('date', today).maybeSingle(),
         supabase.from('meal_logs').select('*').eq('user_id', userId).eq('date', today).order('created_at'),
         supabase.from('water_logs').select('amount_ml').eq('user_id', userId).eq('date', today),
         supabase.from('exercise_logs').select('*').eq('user_id', userId).eq('date', today),
         supabase.from('goals').select('*').eq('user_id', userId).eq('active', true).maybeSingle(),
+        getCoachContext(userId),
       ])
 
       const weight = weightRes.data
@@ -109,6 +111,29 @@ export function registerStatusTools(server: McpServer) {
       } else {
         text += `\n🎉 ¡Todo registrado hoy!`
       }
+
+      const actions: string[] = []
+      if (!coach.hasEverWeighed) {
+        actions.push('Nunca registró su peso: pídele su peso actual como punto de partida.')
+      } else if (!weight) {
+        actions.push('Hoy no se pesó: pregúntale cuánto pesa hoy.')
+      }
+      if (!goal) {
+        actions.push('No tiene objetivo: pregúntale qué quiere lograr (peso objetivo, masa muscular, calorías) y usa set_goal.')
+      }
+      const pendingMeals = ['breakfast', 'lunch', 'dinner'].filter(t => !mealsByType[t]?.length)
+      if (pendingMeals.length) {
+        actions.push(`Pregúntale qué comió en: ${pendingMeals.map(t => MEAL_LABELS[t].toLowerCase()).join(', ')} (solo las que ya deberían haber pasado a las ${coach.hour}:00).`)
+      }
+      if (coach.isNight) {
+        actions.push('Es de noche: dale su resumen del día con 1-2 recomendaciones para mañana.')
+      }
+
+      text += `\n\n---\n🧑‍🏫 Para el asistente:\n`
+      if (coach.name) text += `Usuario: ${coach.name}\n`
+      text += `Hora local: ${coach.hour}:00 — hoy es ${coach.today}, ayer fue ${coach.yesterday}\n`
+      text += `Personalidad de entrenador: ${coach.trainerPrompt || 'Coach motivador, cercano y positivo. Celebra los logros y da consejos simples.'}\n`
+      if (actions.length) text += `Siguientes pasos:\n${actions.map(a => `- ${a}`).join('\n')}`
 
       return { content: [{ type: 'text' as const, text }] }
     },

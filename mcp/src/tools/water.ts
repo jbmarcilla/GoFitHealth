@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { supabase } from '../db.js'
 import { getUserId } from '../auth.js'
+import { dateParam, resolveDate } from '../coach.js'
 
 export function registerWaterTools(server: McpServer) {
   server.tool(
@@ -9,10 +10,11 @@ export function registerWaterTools(server: McpServer) {
     'Registrar consumo de agua. Se suma al total del día.',
     {
       amount_ml: z.number().int().positive().default(250).describe('Cantidad en mililitros (default: 250ml = 1 vaso)'),
+      date: dateParam,
     },
-    async ({ amount_ml }) => {
+    async ({ amount_ml, date }) => {
       const userId = await getUserId()
-      const today = new Date().toISOString().split('T')[0]
+      const today = await resolveDate(userId, date)
 
       const { error } = await supabase.from('water_logs').insert({
         user_id: userId,
@@ -40,7 +42,7 @@ export function registerWaterTools(server: McpServer) {
       return {
         content: [{
           type: 'text' as const,
-          text: `${emoji} Agua registrada: +${amount_ml}ml\nTotal hoy: ${total}ml / ${goal}ml (${pct}%) — ~${glasses} vasos`,
+          text: `${emoji} Agua registrada: +${amount_ml}ml\nTotal ${today}: ${total}ml / ${goal}ml (${pct}%) — ~${glasses} vasos`,
         }],
       }
     },

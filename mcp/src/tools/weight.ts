@@ -2,15 +2,16 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { supabase } from '../db.js'
 import { getUserId } from '../auth.js'
+import { dateParam, resolveDate } from '../coach.js'
 
 export function registerWeightTools(server: McpServer) {
   server.tool(
     'log_weight',
-    'Registrar peso del día. Si ya hay un registro hoy, lo actualiza.',
-    { weight_kg: z.number().positive().describe('Peso en kilogramos') },
-    async ({ weight_kg }) => {
+    'Registrar peso de un día (hoy por defecto). Si ya hay registro ese día, lo actualiza.',
+    { weight_kg: z.number().positive().describe('Peso en kilogramos'), date: dateParam },
+    async ({ weight_kg, date }) => {
       const userId = await getUserId()
-      const today = new Date().toISOString().split('T')[0]
+      const today = await resolveDate(userId, date)
 
       const { error } = await supabase
         .from('weight_logs')

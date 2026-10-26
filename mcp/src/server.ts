@@ -6,12 +6,14 @@ import { registerExerciseTools } from './tools/exercise.js'
 import { registerStatusTools } from './tools/status.js'
 import { registerGoalTools } from './tools/goals.js'
 import { registerReportTools } from './tools/report.js'
+import { registerEntryTools } from './tools/entries.js'
+import { SERVER_INSTRUCTIONS } from './coach.js'
 
 export function createServer() {
-  const server = new McpServer({
-    name: 'gofit-health',
-    version: '1.0.0',
-  })
+  const server = new McpServer(
+    { name: 'gofit-health', version: '1.0.0' },
+    { instructions: SERVER_INSTRUCTIONS },
+  )
 
   registerWeightTools(server)
   registerMealTools(server)
@@ -20,6 +22,7 @@ export function createServer() {
   registerStatusTools(server)
   registerGoalTools(server)
   registerReportTools(server)
+  registerEntryTools(server)
 
   return server
 }

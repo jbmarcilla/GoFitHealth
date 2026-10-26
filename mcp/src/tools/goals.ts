@@ -19,11 +19,12 @@ export function registerGoalTools(server: McpServer) {
     {
       goal_type: z.enum(['athletic', 'muscular', 'lean', 'maintain', 'lose_weight', 'gain_weight']).describe('Tipo de objetivo'),
       target_weight_kg: z.number().positive().optional().describe('Peso objetivo en kg'),
+      target_muscle_mass_kg: z.number().positive().optional().describe('Masa muscular objetivo en kg'),
       daily_calorie_target: z.number().int().positive().optional().describe('Meta de calorías diarias'),
       daily_water_ml: z.number().int().positive().optional().describe('Meta de agua diaria en ml (default: 2000)'),
       notes: z.string().optional().describe('Notas o detalles del objetivo'),
     },
-    async ({ goal_type, target_weight_kg, daily_calorie_target, daily_water_ml, notes }) => {
+    async ({ goal_type, target_weight_kg, target_muscle_mass_kg, daily_calorie_target, daily_water_ml, notes }) => {
       const userId = await getUserId()
 
       await supabase
@@ -38,6 +39,7 @@ export function registerGoalTools(server: McpServer) {
           user_id: userId,
           goal_type,
           target_weight_kg,
+          target_muscle_mass_kg,
           daily_calorie_target,
           daily_water_ml: daily_water_ml ?? 2000,
           notes,
@@ -50,6 +52,7 @@ export function registerGoalTools(server: McpServer) {
 
       let text = `🎯 Objetivo establecido: ${GOAL_LABELS[goal_type] ?? goal_type}\n`
       if (target_weight_kg) text += `• Peso objetivo: ${target_weight_kg} kg\n`
+      if (target_muscle_mass_kg) text += `• Masa muscular objetivo: ${target_muscle_mass_kg} kg\n`
       if (daily_calorie_target) text += `• Meta calórica: ${daily_calorie_target} kcal/día\n`
       text += `• Meta de agua: ${daily_water_ml ?? 2000} ml/día\n`
       if (notes) text += `• Notas: ${notes}\n`

@@ -3,7 +3,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const admin = useSupabaseAdmin()
 
-  const allowed = ['display_name', 'measurement_system', 'cooking_preference', 'timezone']
+  const allowed = ['display_name', 'measurement_system', 'cooking_preference', 'timezone', 'trainer_prompt']
   const updates: Record<string, unknown> = {}
   for (const key of allowed) {
     if (body[key] !== undefined) updates[key] = body[key]

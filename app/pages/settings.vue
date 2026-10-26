@@ -14,7 +14,36 @@ const copied = ref('')
 const { data: profile, refresh: refreshProfile } = await useFetch('/api/me/profile')
 const { data: apiKeys, refresh: refreshKeys } = await useFetch<any[]>('/api/me/api-keys')
 const { data: currentGoal, refresh: refreshGoal } = await useFetch<any>('/api/goals')
-const { data: latestWeight } = await useFetch<any[]>('/api/weight', { params: { limit: 1 } })
+const { data: latestWeight, refresh: refreshWeight } = await useFetch<any[]>('/api/weight', { params: { from: '2000-01-01' } })
+
+const initialWeight = ref<number | null>(null)
+const savingWeight = ref(false)
+
+async function saveInitialWeight() {
+  if (!initialWeight.value) return
+  savingWeight.value = true
+  message.value = ''
+  try {
+    await $fetch('/api/weight', { method: 'POST', body: { weight_kg: initialWeight.value, notes: 'Peso inicial' } })
+    message.value = 'Peso inicial registrado'
+    initialWeight.value = null
+    await refreshWeight()
+  } catch (e: any) {
+    message.value = `Error: ${e.data?.message || e.message}`
+  }
+  savingWeight.value = false
+}
+
+const trainerPresets = [
+  { key: 'motivador', emoji: '🙌', label: 'Motivador', prompt: 'Eres un coach positivo y cercano. Celebras cada logro, por pequeño que sea, y das consejos simples y prácticos. Nunca juzgas.' },
+  { key: 'estricto', emoji: '🧐', label: 'Estricto', prompt: 'Eres un entrenador exigente y directo. No aceptas excusas, señalas claramente lo que falló y exiges constancia diaria. Respetuoso pero firme.' },
+  { key: 'relajado', emoji: '😎', label: 'Relajado', prompt: 'Eres un amigo fitness relajado. Hablas en tono casual, das tips sin presión y priorizas que el usuario disfrute el proceso.' },
+  { key: 'militar', emoji: '🪖', label: 'Militar', prompt: 'Eres un sargento de entrenamiento drástico. Hablas fuerte, corto y con mucha energía. Empujas al usuario al límite y no toleras días sin registrar.' },
+]
+
+function applyPreset(prompt: string) {
+  form.trainer_prompt = prompt
+}
 
 const googleName = computed(() => user.value?.user_metadata?.full_name || user.value?.user_metadata?.name || '')
 const googleAvatar = computed(() => user.value?.user_metadata?.avatar_url || '')
@@ -28,6 +57,7 @@ const currentWeightKg = computed(() => {
 const form = reactive({
   measurement_system: 'grams' as string,
   cooking_preference: 'simple' as string,
+  trainer_prompt: '' as string,
 })
 
 const goalForm = reactive({
@@ -44,6 +74,7 @@ watch(profile, (p: any) => {
   if (p) {
     form.measurement_system = p.measurement_system || 'grams'
     form.cooking_preference = p.cooking_preference || 'simple'
+    form.trainer_prompt = p.trainer_prompt || ''
   }
 }, { immediate: true })
 
@@ -445,9 +476,21 @@ const { signOut } = useAuth()
         <div class="flex items-center justify-between">
           <div>
             <span class="text-xs font-medium text-blue-500 uppercase tracking-wider">Peso actual</span>
-            <p class="text-2xl font-bold text-gray-900 mt-0.5">
-              {{ currentWeightKg ? `${currentWeightKg} kg` : 'Sin registrar' }}
-            </p>
+            <p v-if="currentWeightKg" class="text-2xl font-bold text-gray-900 mt-0.5">{{ currentWeightKg }} kg</p>
+            <div v-else class="mt-1.5">
+              <p class="text-xs text-gray-500 mb-2">Registra tu peso de hoy como punto de partida.</p>
+              <div class="flex items-center gap-2">
+                <input v-model.number="initialWeight" type="number" step="0.1" min="30" max="300" class="input !w-28" placeholder="75.0" />
+                <span class="text-sm text-gray-500">kg</span>
+                <button
+                  class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-xl transition-colors text-sm"
+                  :disabled="!initialWeight || savingWeight"
+                  @click="saveInitialWeight"
+                >
+                  {{ savingWeight ? 'Guardando...' : 'Registrar' }}
+                </button>
+              </div>
+            </div>
           </div>
           <div v-if="currentWeightKg && goalForm.target_weight_kg" class="text-right">
             <span class="text-xs font-medium text-gray-400">Faltan</span>
@@ -472,7 +515,7 @@ const { signOut } = useAuth()
             <input v-model.number="goalForm.target_weight_kg" type="number" step="0.1" min="30" max="300" class="input" placeholder="70.0" />
           </div>
           <div>
-            <label class="text-xs font-medium text-gray-500 mb-1.5 block">Masa muscular objetivo (kg)</label>
+            <label class="text-xs font-medium text-gray-500 mb-1.5 block">Masa muscular obj. (kg)</label>
             <input v-model.number="goalForm.target_muscle_mass_kg" type="number" step="0.1" min="10" max="150" class="input" placeholder="35.0" />
           </div>
         </div>
@@ -494,6 +537,46 @@ const { signOut } = useAuth()
           @click="saveGoal"
         >
           {{ savingGoal ? 'Guardando...' : 'Guardar objetivo' }}
+        </button>
+      </div>
+    </section>
+
+    <!-- ==================== ENTRENADOR ==================== -->
+    <section class="card mb-8">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-xl">🧑‍🏫</span>
+        <h2 class="font-semibold text-lg text-gray-900">Mi entrenador</h2>
+      </div>
+      <p class="text-xs text-gray-400 mb-5">Elige cómo quieres que te hable tu IA. Puedes editar el texto a tu gusto.</p>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+        <button
+          v-for="p in trainerPresets"
+          :key="p.key"
+          class="flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-sm"
+          :class="form.trainer_prompt === p.prompt ? 'border-emerald-400 bg-emerald-50 text-emerald-800' : 'border-gray-100 hover:border-gray-200 text-gray-600'"
+          @click="applyPreset(p.prompt)"
+        >
+          <span class="text-2xl">{{ p.emoji }}</span>
+          <span class="font-medium">{{ p.label }}</span>
+        </button>
+      </div>
+
+      <textarea
+        v-model="form.trainer_prompt"
+        rows="4"
+        class="input resize-none text-sm"
+        placeholder="Ej: Eres un entrenador que me habla como amigo, me recuerda pesarme cada mañana y me felicita cuando tomo agua..."
+      />
+
+      <div class="mt-3 flex items-center justify-between">
+        <span class="text-xs text-gray-400">Se aplica automáticamente en Claude al conectar.</span>
+        <button
+          class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-5 py-2.5 rounded-xl transition-colors text-sm"
+          :disabled="saving"
+          @click="saveProfile"
+        >
+          {{ saving ? 'Guardando...' : 'Guardar entrenador' }}
         </button>
       </div>
     </section>

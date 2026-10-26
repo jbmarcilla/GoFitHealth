@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { supabase } from '../db.js'
 import { getUserId } from '../auth.js'
+import { dateParam, resolveDate } from '../coach.js'
 
 export function registerExerciseTools(server: McpServer) {
   server.tool(
@@ -12,10 +13,11 @@ export function registerExerciseTools(server: McpServer) {
       duration_minutes: z.number().int().positive().describe('Duración en minutos'),
       calories_burned: z.number().int().positive().optional().describe('Calorías quemadas (opcional, se calcula si el ejercicio está en la DB)'),
       notes: z.string().optional().describe('Notas adicionales'),
+      date: dateParam,
     },
-    async ({ exercise_name, duration_minutes, calories_burned, notes }) => {
+    async ({ exercise_name, duration_minutes, calories_burned, notes, date }) => {
       const userId = await getUserId()
-      const today = new Date().toISOString().split('T')[0]
+      const today = await resolveDate(userId, date)
 
       let calories = calories_burned ?? 0
       let exerciseId: string | null = null

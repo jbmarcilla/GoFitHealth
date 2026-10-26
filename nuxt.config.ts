@@ -12,7 +12,19 @@ export default defineNuxtConfig({
     '@nuxtjs/supabase',
     '@nuxtjs/tailwindcss',
     '@nuxt/icon',
+    '@nuxtjs/seo',
   ],
+
+  site: {
+    url: 'https://gofit.health',
+    name: 'GoFit Health',
+    description: 'Contador de calorías con IA. Registra comidas, peso, agua y ejercicio hablando con tu entrenador en Claude o ChatGPT. Gratis.',
+    defaultLocale: 'es',
+  },
+
+  ogImage: {
+    enabled: false,
+  },
 
   supabase: {
     redirect: false,
@@ -32,10 +44,11 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'GoFit Health',
+      htmlAttrs: { lang: 'es' },
+      title: 'GoFit Health — Contador de calorías con IA',
       meta: [
-        { name: 'description', content: 'Registra tu peso, comidas, agua y ejercicios. Seguimiento inteligente de tu salud.' },
-        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { name: 'description', content: 'Registra comidas, peso, agua y ejercicio hablando con tu IA. Contador de calorías gratis con déficit calórico automático, densidad calórica y macronutrientes.' },
+        { name: 'keywords', content: 'contador de calorías, déficit calórico, registro de peso, seguimiento de comidas, app fitness IA, densidad calórica, macronutrientes, bajar de peso, app nutrición gratis' },
       ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico?v=2', sizes: '16x16 32x32 48x48' },
@@ -58,10 +71,11 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    '/dashboard': { ssr: false },
-    '/settings': { ssr: false },
-    '/oauth/authorize': { ssr: false },
-    '/onboarding': { ssr: false },
-    '/auth/magic': { ssr: false },
+    '/dashboard': { ssr: false, robots: false },
+    '/settings': { ssr: false, robots: false },
+    '/oauth/authorize': { ssr: false, robots: false },
+    '/onboarding': { ssr: false, robots: false },
+    '/auth/magic': { ssr: false, robots: false },
+    '/api/**': { robots: false },
   },
 })

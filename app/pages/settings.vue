@@ -2,6 +2,10 @@
 import { COUNTRY_TIMEZONES, countryFlag, countryLabel, timezoneLabel } from '#shared/constants/countries'
 
 definePageMeta({ middleware: 'auth' })
+useSeoMeta({
+  title: 'Configuración — GoFit Health',
+  robots: 'noindex, nofollow',
+})
 
 type SectionKey = 'connect' | 'goals' | 'trainer' | 'location' | 'profile'
 

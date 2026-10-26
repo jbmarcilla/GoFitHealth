@@ -1,0 +1,9 @@
+User-Agent: *
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /onboarding
+Disallow: /oauth/
+Disallow: /auth/
+Disallow: /api/
+
+Sitemap: https://gofit.health/sitemap.xml

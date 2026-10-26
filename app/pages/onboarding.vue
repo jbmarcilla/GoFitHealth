@@ -3,7 +3,10 @@ import { randomPhrase } from '#shared/constants/phrases'
 import { DENSITY_INFO, DENSITY_ORDER } from '#shared/constants/caloric-density'
 
 definePageMeta({ middleware: 'auth' })
-useHead({ title: 'Bienvenido a GoFit' })
+useSeoMeta({
+  title: 'Bienvenido a GoFit Health',
+  robots: 'noindex, nofollow',
+})
 
 const user = useSupabaseUser()
 const onboarded = useState<boolean | null>('onboarded')

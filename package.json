@@ -12,6 +12,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@nuxt/icon": "^2.6.1",
+    "@nuxtjs/seo": "^5.3.16",
     "@nuxtjs/supabase": "^2.1.0",
     "@nuxtjs/tailwindcss": "^6.14.0",
     "chart.js": "^4.6.1",

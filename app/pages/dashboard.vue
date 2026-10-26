@@ -2,6 +2,10 @@
 import { phraseOfTheDay } from '#shared/constants/phrases'
 
 definePageMeta({ middleware: 'auth' })
+useSeoMeta({
+  title: 'Mi Dashboard — GoFit Health',
+  robots: 'noindex, nofollow',
+})
 
 const user = useSupabaseUser()
 const {

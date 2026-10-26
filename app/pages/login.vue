@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { randomPhrase } from '#shared/constants/phrases'
 
+useSeoMeta({
+  title: 'Iniciar sesión — GoFit Health',
+  description: 'Entra con Google a GoFit Health. Registra comidas, peso, agua y ejercicio con tu IA.',
+  robots: 'noindex, nofollow',
+})
+
 const phrase = randomPhrase()
 const client = useSupabaseClient()
 const user = useSupabaseUser()

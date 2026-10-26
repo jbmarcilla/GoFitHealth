@@ -45,7 +45,7 @@ const trainers = [
 <template>
   <div class="bg-white">
     <!-- Hero -->
-    <section class="mx-auto grid max-w-6xl items-center gap-14 px-4 pb-24 pt-16 md:grid-cols-2 md:pt-24">
+    <section class="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-14 md:grid-cols-[1.1fr_1fr] md:gap-16 md:pt-20">
       <div>
         <p class="inline-flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-500">
           <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -53,38 +53,49 @@ const trainers = [
         </p>
         <h1 class="mt-6 text-4xl font-semibold leading-[1.08] tracking-tight text-gray-900 md:text-[3.25rem]">
           Tu IA ya puede ser<br>
-          <span class="text-emerald-600">tu entrenador.</span>
+          <span class="text-emerald-600">tu entrenador</span> 💪
         </h1>
         <p class="mt-5 max-w-md text-lg leading-relaxed text-gray-500">
           Cuéntale lo que comes, cuánto pesas y cómo te mueves. GoFit lo registra y te acompaña a sentirte mejor, sin dietas extremas y sin culpa.
         </p>
-        <div class="mt-8 flex flex-wrap items-center gap-4">
+        <div class="mt-8">
           <NuxtLink
             to="/login"
             class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800"
           >
-            Empezar gratis <span aria-hidden="true">→</span>
+            Iniciar sesión <span aria-hidden="true">→</span>
           </NuxtLink>
-          <span class="text-sm text-gray-400">Solo con tu cuenta de Google</span>
         </div>
       </div>
 
-      <div class="relative">
-        <div class="absolute -inset-3 -z-10 rounded-[2rem] bg-gradient-to-br from-emerald-50 via-white to-amber-50/60 md:-inset-6" />
-        <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div class="mb-4 flex items-center gap-2 border-b border-gray-100 pb-3">
-            <span class="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-600 text-xs">💪</span>
-            <span class="text-xs font-medium text-gray-500">Tu entrenador en el chat</span>
+      <div class="relative mx-auto w-full max-w-sm md:max-w-none">
+        <img
+          src="/hero.jpg"
+          alt="Mujer estirando con los brazos arriba en un parque"
+          width="1100"
+          height="1375"
+          class="aspect-[4/5] w-full rounded-3xl object-cover object-[center_40%]"
+        />
+
+        <div class="absolute left-3 top-3 rounded-2xl bg-white/95 px-3.5 py-2.5 shadow-lg backdrop-blur md:left-4 md:top-4">
+          <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Agua</p>
+          <p class="mt-0.5 text-base font-semibold text-gray-900 tabular-nums">💧 5<span class="font-normal text-gray-400">/8 vasos</span></p>
+        </div>
+
+        <div class="absolute right-3 top-3 rounded-2xl bg-white/95 px-3.5 py-2.5 shadow-lg backdrop-blur md:right-4 md:top-4">
+          <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Hoy</p>
+          <p class="mt-0.5 text-base font-semibold text-gray-900 tabular-nums">🍽️ 1,240<span class="font-normal text-gray-400"> / 2,000 kcal</span></p>
+          <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+            <div class="h-full w-[62%] rounded-full bg-emerald-500" />
           </div>
-          <div class="space-y-3">
-            <div v-for="(m, i) in chat" :key="i" class="flex" :class="m.from === 'user' ? 'justify-end' : 'justify-start'">
-              <p
-                class="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
-                :class="m.from === 'user' ? 'rounded-br-md bg-gray-900 text-white' : 'rounded-bl-md bg-gray-100 text-gray-700'"
-              >
-                {{ m.text }}
-              </p>
-            </div>
+        </div>
+
+        <div class="absolute bottom-3 left-3 right-3 rounded-2xl bg-white/95 p-3 shadow-lg backdrop-blur md:bottom-4 md:left-4 md:right-4">
+          <p class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Densidad calórica</p>
+          <div class="mt-2 grid grid-cols-3 gap-1.5 text-xs font-medium">
+            <div class="flex items-center gap-1.5 rounded-lg bg-green-50 px-2 py-1.5 text-green-800"><span class="h-2 w-2 shrink-0 rounded-full bg-green-500" />Ensalada</div>
+            <div class="flex items-center gap-1.5 rounded-lg bg-yellow-50 px-2 py-1.5 text-yellow-800"><span class="h-2 w-2 shrink-0 rounded-full bg-yellow-400" />Arroz</div>
+            <div class="flex items-center gap-1.5 rounded-lg bg-red-50 px-2 py-1.5 text-red-800"><span class="h-2 w-2 shrink-0 rounded-full bg-red-500" />Palta</div>
           </div>
         </div>
       </div>

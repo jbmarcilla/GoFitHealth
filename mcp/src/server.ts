@@ -10,12 +10,16 @@ import { registerReportTools } from './tools/report.js'
 import { registerEntryTools } from './tools/entries.js'
 import { registerLocationTools } from './tools/location.js'
 import { registerProfileTools } from './tools/profile.js'
+import { registerCardTools } from './tools/card.js'
 import { SERVER_INSTRUCTIONS } from './coach.js'
 
 export function createServer(ctx: ToolContext) {
   const server = new McpServer(
     { name: 'gofit-health', version: '1.0.0' },
-    { instructions: SERVER_INSTRUCTIONS },
+    {
+      instructions: SERVER_INSTRUCTIONS,
+      capabilities: { extensions: { 'io.modelcontextprotocol/ui': {} } } as any,
+    },
   )
 
   registerWeightTools(server, ctx)
@@ -28,6 +32,7 @@ export function createServer(ctx: ToolContext) {
   registerEntryTools(server, ctx)
   registerLocationTools(server, ctx)
   registerProfileTools(server, ctx)
+  registerCardTools(server, ctx)
 
   return server
 }

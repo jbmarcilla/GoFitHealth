@@ -60,5 +60,6 @@ export default defineNuxtConfig({
     '/settings': { ssr: false },
     '/oauth/authorize': { ssr: false },
     '/onboarding': { ssr: false },
+    '/auth/magic': { ssr: false },
   },
 })

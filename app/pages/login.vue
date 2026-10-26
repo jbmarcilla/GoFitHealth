@@ -7,7 +7,7 @@ const user = useSupabaseUser()
 const config = useRuntimeConfig()
 const route = useRoute()
 const loading = ref(false)
-const error = ref('')
+const error = ref(route.query.expired ? 'El enlace del chat venció o ya se usó. Entra con Google o pide uno nuevo a tu IA.' : '')
 
 const rawNext = typeof route.query.next === 'string' ? route.query.next : ''
 const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/dashboard'

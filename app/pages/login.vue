@@ -2,16 +2,22 @@
 const client = useSupabaseClient()
 const user = useSupabaseUser()
 const config = useRuntimeConfig()
+const route = useRoute()
 const loading = ref(false)
 const error = ref('')
 
+const rawNext = typeof route.query.next === 'string' ? route.query.next : ''
+const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/dashboard'
+const nextCookie = useCookie('gofit_next', { maxAge: 600, sameSite: 'lax', path: '/' })
+
 if (user.value) {
-  navigateTo('/dashboard')
+  navigateTo(next)
 }
 
 async function signInWithGoogle() {
   loading.value = true
   error.value = ''
+  nextCookie.value = next
 
   const { error: authError } = await client.auth.signInWithOAuth({
     provider: 'google',
@@ -27,7 +33,7 @@ async function signInWithGoogle() {
 }
 
 watch(user, (val) => {
-  if (val) navigateTo('/dashboard')
+  if (val) navigateTo(next)
 })
 </script>
 

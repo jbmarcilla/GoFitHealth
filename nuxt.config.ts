@@ -16,6 +16,14 @@ export default defineNuxtConfig({
     preset: 'cloudflare-pages',
   },
 
+  serverHandlers: [
+    { route: '/.well-known/oauth-protected-resource', handler: '~~/server/oauth/protected-resource.ts' },
+    { route: '/.well-known/oauth-protected-resource/**', handler: '~~/server/oauth/protected-resource.ts' },
+    { route: '/.well-known/oauth-authorization-server', handler: '~~/server/oauth/authorization-server.ts' },
+    { route: '/.well-known/oauth-authorization-server/**', handler: '~~/server/oauth/authorization-server.ts' },
+    { route: '/.well-known/openid-configuration', handler: '~~/server/oauth/authorization-server.ts' },
+  ],
+
   app: {
     head: {
       title: 'GoFit Health',
@@ -42,5 +50,6 @@ export default defineNuxtConfig({
   routeRules: {
     '/dashboard': { ssr: false },
     '/settings': { ssr: false },
+    '/oauth/authorize': { ssr: false },
   },
 })

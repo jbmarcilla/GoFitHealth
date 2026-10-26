@@ -15,5 +15,9 @@ export default defineEventHandler(async (event) => {
     return sendRedirect(event, `/?error=${error.message}`)
   }
 
-  return sendRedirect(event, '/dashboard')
+  const next = getCookie(event, 'gofit_next')
+  deleteCookie(event, 'gofit_next', { path: '/' })
+  const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
+
+  return sendRedirect(event, safeNext)
 })

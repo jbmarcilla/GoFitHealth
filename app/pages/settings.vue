@@ -235,21 +235,29 @@ const pasteGuides = [
 ]
 
 // ---------- Conectar IA ----------
-async function connectTo(platform: 'claude' | 'chatgpt') {
+function connectTo(platform: 'claude' | 'chatgpt') {
   connectingTo.value = platform
+  generatedKey.value = ''
   message.value = ''
+  showKeyModal.value = true
+}
+
+const generatingKey = ref(false)
+
+async function generateKeyUrl() {
+  if (!activePlatform.value) return
+  generatingKey.value = true
   try {
     const res = await $fetch<{ key: string }>('/api/me/api-keys', {
       method: 'POST',
-      body: { label: platforms[platform].name },
+      body: { label: `${activePlatform.value.name} (URL con key)` },
     })
     generatedKey.value = res.key
-    showKeyModal.value = true
     await refreshKeys()
   } catch (e: any) {
     showError(e)
-    connectingTo.value = null
   }
+  generatingKey.value = false
 }
 
 async function deleteApiKey(id: string) {
@@ -280,7 +288,8 @@ const platforms = {
     steps: [
       'Abre Claude → Configuración → Conectores',
       'Toca "Agregar conector personalizado"',
-      'Ponle de nombre "GoFit" y pega tu URL',
+      'Nombre: "GoFit". Pega la URL y toca "Agregar"',
+      'Toca "Conectar", entra con Google y toca "Permitir"',
       'En un chat, activa GoFit desde el menú de herramientas',
     ],
     cardClass: 'border-gray-100 hover:border-violet-200',
@@ -299,8 +308,9 @@ const platforms = {
     steps: [
       'Abre ChatGPT → Configuración → Complementos y activa el Modo desarrollador',
       'Toca "Crear" → "Añadir servidor MCP personalizado"',
-      'Nombre: "GoFit". En "URL del servidor" pega tu URL',
-      'En Autenticación elige "Sin autenticación" (no OAuth), acepta el aviso y crea',
+      'Nombre: "GoFit". En "URL del servidor" pega la URL',
+      'Autenticación: OAuth. Acepta el aviso y toca "Crear"',
+      'Entra con Google y toca "Permitir"',
       'En un chat, activa GoFit desde el menú "+"',
     ],
     cardClass: 'border-gray-100 hover:border-green-200',
@@ -313,11 +323,12 @@ const platforms = {
 const platformList = Object.values(platforms)
 const activePlatform = computed(() => (connectingTo.value ? platforms[connectingTo.value] : null))
 
-const howItWorks = ['Genera tu URL personal', 'Pégala en Claude o ChatGPT', 'Habla: "hoy peso 75 kg"']
+const howItWorks = ['Copia la URL de GoFit', 'Pégala en Claude o ChatGPT y entra con Google', 'Habla: "hoy peso 75 kg"']
 const examplePhrases = ['Hoy peso 75 kg', 'Desayuné 2 huevos y pan con palta', 'Tomé un vaso de agua', '¿Cómo va mi semana?']
 
 const origin = useRequestURL().origin
-const mcpUrl = computed(() => `${origin}/mcp/${generatedKey.value}`)
+const mcpUrl = `${origin}/mcp`
+const keyUrl = computed(() => `${origin}/mcp/${generatedKey.value}`)
 
 function platformHasKey(name: string) {
   return apiKeys.value?.some((k: any) => k.label?.includes(name)) ?? false
@@ -415,7 +426,7 @@ function closeModal() {
           <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 p-5 text-white">
             <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
             <p class="text-xs font-medium uppercase tracking-wider text-emerald-100">Cómo funciona</p>
-            <p class="mt-1 text-lg font-semibold">Una URL personal y tu IA se convierte en tu entrenador</p>
+            <p class="mt-1 text-lg font-semibold">Una URL, entras con Google y tu IA se convierte en tu entrenador</p>
             <ol class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <li v-for="(step, i) in howItWorks" :key="i" class="flex items-center gap-2.5 rounded-xl bg-white/10 px-3 py-2.5 text-sm">
                 <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-emerald-700">{{ i + 1 }}</span>
@@ -459,7 +470,7 @@ function closeModal() {
                 :class="platformHasKey(p.name) ? p.softButtonClass : p.buttonClass"
                 @click="connectTo(p.key)"
               >
-                <template v-if="platformHasKey(p.name)">Generar nueva URL</template>
+                <template v-if="platformHasKey(p.name)">Ver cómo conectar</template>
                 <template v-else>⚡ Conectar con {{ p.name }}</template>
               </button>
             </div>
@@ -487,7 +498,7 @@ function closeModal() {
 
           <p class="flex items-start gap-2 text-xs text-gray-400">
             <span>🔒</span>
-            Tu URL funciona como una contraseña: no la compartas. Si la pierdes o crees que alguien la vio, desconéctala y genera otra.
+            La conexión usa tu cuenta de Google: GoFit nunca comparte tu contraseña. Puedes desconectar cualquier app desde aquí.
           </p>
         </section>
 
@@ -812,19 +823,19 @@ function closeModal() {
             <li class="rounded-xl border border-gray-100 bg-gray-50 p-4">
               <p class="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900">
                 <span class="flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-xs font-bold text-white">1</span>
-                Copia tu URL personal
+                Copia la URL de GoFit
               </p>
               <div class="flex items-stretch gap-2">
-                <code class="flex-1 select-all break-all rounded-lg border border-gray-200 bg-white p-2.5 font-mono text-xs text-gray-700">{{ mcpUrl }}</code>
+                <code class="flex-1 select-all break-all rounded-lg border border-gray-200 bg-white p-3 font-mono text-sm text-gray-800">{{ mcpUrl }}</code>
                 <button
-                  class="shrink-0 rounded-lg px-3 text-sm font-medium transition-colors"
+                  class="shrink-0 rounded-lg px-4 text-sm font-medium transition-colors"
                   :class="copied === 'url' ? 'bg-emerald-100 text-emerald-700' : activePlatform.buttonClass"
                   @click="copyToClipboard(mcpUrl, 'url')"
                 >
                   {{ copied === 'url' ? '✓ Copiada' : 'Copiar' }}
                 </button>
               </div>
-              <p class="mt-2 text-xs text-amber-600">⚠️ Solo se muestra esta vez. Guárdala antes de cerrar.</p>
+              <p class="mt-2 text-xs text-gray-500">Es la misma para todos. Tu cuenta se conecta al entrar con Google.</p>
             </li>
 
             <li class="rounded-xl border border-gray-100 bg-gray-50 p-4">
@@ -859,6 +870,35 @@ function closeModal() {
               </div>
             </li>
           </ol>
+
+          <details class="mt-4 rounded-xl border border-gray-100 p-4">
+            <summary class="cursor-pointer text-xs font-medium text-gray-500 hover:text-gray-700">
+              ¿Tu app no te pide iniciar sesión? Usa una URL con key
+            </summary>
+            <p class="mt-3 text-xs text-gray-500">
+              Genera una URL personal y, en la app, elige <b>"Sin autenticación"</b>. Funciona como una contraseña: no la compartas.
+            </p>
+            <button
+              v-if="!generatedKey"
+              class="mt-3 rounded-lg bg-gray-900 px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-50"
+              :disabled="generatingKey"
+              @click="generateKeyUrl"
+            >
+              {{ generatingKey ? 'Generando...' : 'Generar URL con key' }}
+            </button>
+            <div v-else class="mt-3">
+              <div class="flex items-stretch gap-2">
+                <code class="flex-1 select-all break-all rounded-lg border border-gray-200 bg-gray-50 p-2.5 font-mono text-xs text-gray-700">{{ keyUrl }}</code>
+                <button
+                  class="shrink-0 rounded-lg bg-gray-900 px-3 text-xs font-medium text-white transition-colors hover:bg-gray-800"
+                  @click="copyToClipboard(keyUrl, 'keyurl')"
+                >
+                  {{ copied === 'keyurl' ? '✓' : 'Copiar' }}
+                </button>
+              </div>
+              <p class="mt-2 text-xs text-amber-600">⚠️ Solo se muestra esta vez.</p>
+            </div>
+          </details>
 
           <button class="btn-secondary mt-5 w-full justify-center" @click="closeModal">Listo</button>
         </div>

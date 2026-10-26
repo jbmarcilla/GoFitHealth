@@ -4,6 +4,7 @@ import type { ToolContext } from '../context.js'
 import { resolvePortionGrams } from '../utils/portions.js'
 import { dateParam, resolveDate } from '../coach.js'
 import { countryFlag, ensureCountry, getCurrentLocation } from '../location.js'
+import { DENSITY_INFO, DENSITY_ORDER, DENSITY_RULE, densityLine, densityOfPortion } from '../density.js'
 import {
   FOOD_SELECT,
   type FoodRow,
@@ -25,11 +26,9 @@ const MEAL_LABELS: Record<string, string> = {
   snack: 'Snack',
 }
 
-const DENSITY_LABELS: Record<string, string> = {
-  green: '🟢 Baja',
-  yellow: '🟡 Media',
-  red: '🔴 Alta',
-}
+const DENSITY_LABELS: Record<string, string> = Object.fromEntries(
+  DENSITY_ORDER.map(k => [k, `${DENSITY_INFO[k].emoji} ${DENSITY_INFO[k].label}`]),
+)
 
 const nutrientsParam = z
   .record(z.string(), z.number().nonnegative())
@@ -110,7 +109,7 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
           nutrition.nutrients = { ...nutrition.nutrients, ...extra }
           unknownNote += unknownKeysNote(nutrients, extra)
         }
-        densityInfo = `\nDensidad calórica: ${DENSITY_LABELS[food.caloric_density] ?? food.caloric_density}`
+        densityInfo = `\nDensidad calórica: ${densityOfPortion(food.name, nutrition.calories, nutrition.grams ?? 0).explanation}`
       } else {
         if (!estimated_calories) {
           return text(`⚠️ No encontré "${food_name}" en la base de datos. Agrégalo con add_food (calorías, macros y nutrientes por 100 g) para que quede para todos, o pasa estimated_calories y macros de la porción.`)
@@ -129,6 +128,7 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
           fiber_g: fiber_g ?? null,
           nutrients: kept,
         }
+        if (nutrition.grams) densityInfo = `\nDensidad calórica: ${densityOfPortion(food_name, nutrition.calories, nutrition.grams).explanation}`
       }
 
       try {
@@ -260,9 +260,8 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
         return text(`Alimento agregado, pero falló guardar nutrientes: ${e.message}`)
       }
 
-      const density = DENSITY_LABELS[data.caloric_density] ?? data.caloric_density
       return text(
-        `✅ Alimento agregado: ${data.name} (${calories_per_100g} kcal/100g) — Densidad: ${density}`
+        `✅ Alimento agregado: ${data.name} (${calories_per_100g} kcal/100g) — ${densityLine(data.caloric_density, calories_per_100g)}`
         + `\nMicronutrientes guardados: ${savedCount}`
         + unknownKeysNote(nutrients, kept),
       )

@@ -166,6 +166,10 @@ export function registerStatusTools(server: McpServer, ctx: ToolContext) {
       if (plan) {
         actions.push(`Máximo de calorías ${goal?.daily_calorie_target ? 'manual' : 'calculado'}: ${calorieGoal} kcal. ${explainPlan(plan)} Explícaselo si pregunta cuánto puede comer.`)
       }
+      const incompleteMeals = (meals as any[]).filter(m => m.estimated_protein === null || m.estimated_carbs === null || m.estimated_fat === null || !m.estimated_grams)
+      if (incompleteMeals.length) {
+        actions.push(`${incompleteMeals.length} comida(s) de hoy sin macros o gramos (${incompleteMeals.map(m => m.food_name).join(', ')}). Llama a get_day_log y complétalas con update_entry (estimated_protein, estimated_carbs, estimated_fat, estimated_fiber, estimated_grams) con tus valores típicos, sin preguntar al usuario.`)
+      }
       const pendingMeals = ['breakfast', 'lunch', 'dinner'].filter(t => !mealsByType[t]?.length)
       if (pendingMeals.length) {
         actions.push(`Pregúntale qué comió en: ${pendingMeals.map(t => MEAL_LABELS[t].toLowerCase()).join(', ')} (solo las que ya deberían haber pasado a las ${coach.hour}:00).`)

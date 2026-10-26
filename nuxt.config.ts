@@ -1,6 +1,12 @@
+import { fileURLToPath } from 'node:url'
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+
+  alias: {
+    '#mcp': fileURLToPath(new URL('./mcp/src', import.meta.url)),
+  },
 
   modules: [
     '@nuxtjs/supabase',

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { randomPhrase } from '#shared/constants/phrases'
+import { DENSITY_INFO, DENSITY_ORDER } from '#shared/constants/caloric-density'
 
 definePageMeta({ middleware: 'auth' })
 useHead({ title: 'Bienvenido a GoFit' })
@@ -72,11 +73,10 @@ async function copyUrl() {
 }
 
 // ---- Paso 3: colores ----
-const colors = [
-  { dot: 'bg-green-500', bg: 'bg-green-50 border-green-100', name: 'Verde', desc: 'Pocas calorías por bocado. Puedes comer con libertad.', eg: 'Ensalada, frutas, sopa, verduras' },
-  { dot: 'bg-yellow-400', bg: 'bg-yellow-50 border-yellow-100', name: 'Amarillo', desc: 'Energía de todos los días. Cuida la porción.', eg: 'Arroz, pan, pollo, papa' },
-  { dot: 'bg-red-500', bg: 'bg-red-50 border-red-100', name: 'Rojo', desc: 'Mucha energía en poco espacio. Disfrútalo en porciones pequeñas.', eg: 'Palta, frutos secos, aceite, chocolate' },
-]
+const colors = DENSITY_ORDER.map((k) => {
+  const d = DENSITY_INFO[k]
+  return { dot: d.dot, bg: d.bg, name: `${d.emoji} ${d.label}`, desc: `${d.advice} (${d.range})`, eg: d.examples }
+})
 const portions = [
   { icon: '✊', name: 'Puño', eg: 'arroz, pasta' },
   { icon: '🖐️', name: 'Palma', eg: 'pollo, pescado' },

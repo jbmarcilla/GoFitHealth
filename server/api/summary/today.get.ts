@@ -17,9 +17,14 @@ export default defineEventHandler(async (event) => {
     admin.from('weight_logs').select('weight_kg').eq('user_id', user.id).lte('date', date).order('date', { ascending: false }).limit(1).maybeSingle(),
   ])
 
-  // Calorie max: manual if the goal has one, otherwise computed from the latest weigh-in.
+  // Calorie max: manual if the goal has one, otherwise computed from the closest weigh-in
+  // (the last one at or before the date; for days before the first weigh-in, the first one).
   const goal = goalRes.data ? { ...goalRes.data } : null
-  const weightKg = Number(weightRes.data?.weight_kg ?? lastWeightRes.data?.weight_kg ?? 0)
+  let weightKg = Number(weightRes.data?.weight_kg ?? lastWeightRes.data?.weight_kg ?? 0)
+  if (!weightKg) {
+    const { data: first } = await admin.from('weight_logs').select('weight_kg').eq('user_id', user.id).order('date').limit(1).maybeSingle()
+    weightKg = Number(first?.weight_kg ?? 0)
+  }
   let caloriePlan = null
   if (weightKg > 0) {
     caloriePlan = calorieTarget({ weightKg, profile: profileRes.data, targetKg: goal?.target_weight_kg ? Number(goal.target_weight_kg) : null, goalType: goal?.goal_type })

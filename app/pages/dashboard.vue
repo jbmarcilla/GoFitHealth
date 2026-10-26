@@ -6,7 +6,7 @@ definePageMeta({ middleware: 'auth' })
 const user = useSupabaseUser()
 const {
   selectedDate, todayStr, weekDays, isToday,
-  dayStatus, dayLoading, progress,
+  dayStatus, dayLoading, weekStatus, progress,
   selectDate, prevWeek, nextWeek, goToToday, refresh,
 } = useDashboard()
 
@@ -107,11 +107,13 @@ function microTone(n: { percent: number | null; is_limit: boolean }) {
         :week-days="weekDays"
         :selected-date="selectedDate"
         :today="todayStr"
+        :status="weekStatus ?? []"
         @select="selectDate"
         @prev="prevWeek"
         @next="nextWeek"
       />
       <p class="mt-2 text-center text-sm font-medium capitalize text-gray-700">{{ dateLabel }}</p>
+      <p class="mt-1 text-center text-[10px] text-gray-400">✓ dentro del máximo · + te pasaste</p>
     </div>
 
     <!-- Calorie ring -->

@@ -43,19 +43,29 @@ export function useDashboard() {
 
   const isToday = computed(() => selectedDate.value === todayStr)
 
+  const { data: weekStatus } = useFetch('/api/summary/week', {
+    lazy: true,
+    query: computed(() => ({ from: weekDays.value[0], to: weekDays.value[6] })),
+    watch: [weekDays],
+    default: () => [] as Array<{ date: string; met: boolean | null; remaining: number | null }>,
+  })
+
+  const shift = (date: string, days: number) => {
+    const d = new Date(date + 'T12:00:00')
+    d.setDate(d.getDate() + days)
+    return d.toISOString().split('T')[0]
+  }
+
   function selectDate(date: string) {
     if (date <= todayStr) selectedDate.value = date
   }
+  // Previous week lands on its last day (Sunday), next week on its first (Monday).
   function prevWeek() {
-    const d = new Date(selectedDate.value + 'T12:00:00')
-    d.setDate(d.getDate() - 7)
-    selectedDate.value = d.toISOString().split('T')[0]
+    selectedDate.value = shift(weekDays.value[0], -1)
   }
   function nextWeek() {
-    const d = new Date(selectedDate.value + 'T12:00:00')
-    d.setDate(d.getDate() + 7)
-    const next = d.toISOString().split('T')[0]
-    selectedDate.value = next <= todayStr ? next : todayStr
+    const monday = shift(weekDays.value[6], 1)
+    selectedDate.value = monday <= todayStr ? monday : todayStr
   }
   function goToToday() {
     selectedDate.value = todayStr
@@ -72,6 +82,7 @@ export function useDashboard() {
     isToday,
     dayStatus,
     dayLoading,
+    weekStatus,
     progress,
     selectDate,
     prevWeek,

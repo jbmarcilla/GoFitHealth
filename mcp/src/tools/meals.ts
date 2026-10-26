@@ -68,13 +68,14 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
       carbs_g: z.number().nonnegative().optional().describe('Carbohidratos de la porción en g. OBLIGATORIO si el alimento no está en la DB.'),
       fat_g: z.number().nonnegative().optional().describe('Grasa de la porción en g. OBLIGATORIO si el alimento no está en la DB.'),
       fiber_g: z.number().nonnegative().optional().describe('Fibra de la porción en g (si no está en la DB)'),
-      grams: z.number().positive().optional().describe('Peso aproximado de la porción en gramos, si la unidad no es g/ml. Sirve para la densidad calórica.'),
+      grams: z.number().positive().optional().describe('Peso aproximado de la porción en gramos, si la unidad no es g/ml. OBLIGATORIO si el alimento no está en la DB (se crea su ficha por 100 g con esto).'),
+      food_category: z.enum(['grains', 'protein', 'vegetables', 'fruits', 'dairy', 'fats', 'nuts', 'snacks', 'liquids', 'other']).optional().describe('Categoría del alimento, si se crea su ficha.'),
       nutrients: nutrientsParam,
-      food_nutrients_per_100g: z.record(z.string(), z.number().nonnegative()).optional().describe('Micronutrientes típicos del alimento POR 100 g, mismas claves que nutrients. Se guardan en la DB si el alimento no los tenía, y se usan para esta comida.'),
+      food_nutrients_per_100g: z.record(z.string(), z.number().nonnegative()).optional().describe('SIEMPRE inclúyelo: micronutrientes típicos del alimento POR 100 g, mismas claves que nutrients. Se guardan en la DB si el alimento no los tenía (o si se crea su ficha), y se usan para esta comida.'),
       notes: z.string().optional().describe('Notas adicionales'),
       date: dateParam,
     },
-    async ({ meal_type, food_name, quantity, unit, estimated_calories, protein_g, carbs_g, fat_g, fiber_g, grams, nutrients, food_nutrients_per_100g, notes, date }) => {
+    async ({ meal_type, food_name, quantity, unit, estimated_calories, protein_g, carbs_g, fat_g, fiber_g, grams, food_category, nutrients, food_nutrients_per_100g, notes, date }) => {
       const userId = await ctx.userId()
       const today = await resolveDate(ctx, userId, date)
 
@@ -83,11 +84,12 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
         .select(FOOD_SELECT)
         .ilike('name', `%${food_name}%`)
         .limit(1)
-      const food = (foods?.[0] as FoodRow | undefined) ?? null
+      let food = (foods?.[0] as FoodRow | undefined) ?? null
 
       let nutrition: MealNutrition
       let densityInfo = ''
       let unknownNote = ''
+      let createdFood = false
 
       let learned = 0
       if (food) {
@@ -114,21 +116,41 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
         if (!estimated_calories) {
           return text(`⚠️ No encontré "${food_name}" en la base de datos. Agrégalo con add_food (calorías, macros y nutrientes por 100 g) para que quede para todos, o pasa estimated_calories y macros de la porción.`)
         }
-        if (protein_g === undefined || carbs_g === undefined || fat_g === undefined) {
-          return text(`⚠️ No se registró. "${food_name}" no está en la DB, así que necesito protein_g, carbs_g y fat_g de la porción (y grams si puedes). Estímalos con tus valores típicos y vuelve a llamar log_meal. No le preguntes al usuario.`)
+        const portionGrams = unit === 'g' || unit === 'ml' ? quantity : grams
+        if (protein_g === undefined || carbs_g === undefined || fat_g === undefined || !portionGrams || !food_nutrients_per_100g) {
+          return text(`⚠️ No se registró. "${food_name}" no está en la DB y se creará su ficha para todos: necesito protein_g, carbs_g, fat_g de la porción, grams (peso de la porción) y food_nutrients_per_100g con sus micronutrientes típicos por 100 g. Estímalos con tus valores típicos y vuelve a llamar log_meal. No le preguntes al usuario.`)
         }
-        const kept = await sanitizeNutrients(ctx.db, nutrients)
-        unknownNote = unknownKeysNote(nutrients, kept)
-        nutrition = {
-          grams: unit === 'g' || unit === 'ml' ? quantity : grams ?? null,
-          calories: estimated_calories,
-          protein_g: protein_g ?? null,
-          carbs_g: carbs_g ?? null,
-          fat_g: fat_g ?? null,
-          fiber_g: fiber_g ?? null,
-          nutrients: kept,
-        }
-        if (nutrition.grams) densityInfo = `\nDensidad calórica: ${densityOfPortion(food_name, nutrition.calories, nutrition.grams).explanation}`
+
+        // Create the catalog entry from this portion so the food, its macros and micros stay for everyone.
+        const per100 = await sanitizeNutrients(ctx.db, food_nutrients_per_100g)
+        unknownNote = unknownKeysNote(food_nutrients_per_100g, per100)
+        const ratio = 100 / portionGrams
+        const r1 = (n: number) => Math.round(n * ratio * 10) / 10
+        const location = await getCurrentLocation(ctx.db, userId)
+        const countryId = food_category && location && ['snacks', 'other'].includes(food_category) ? await ensureCountry(ctx.db, location.country.code) : null
+        const { data: created, error: createErr } = await ctx.db
+          .from('foods')
+          .insert({
+            name: food_name,
+            calories_per_100g: Math.round(estimated_calories * ratio),
+            protein_g: r1(protein_g), carbs_g: r1(carbs_g), fat_g: r1(fat_g), fiber_g: r1(fiber_g ?? 0),
+            food_category: food_category ?? null,
+            country_id: countryId,
+            added_by: userId,
+          })
+          .select(FOOD_SELECT)
+          .single()
+        if (createErr || !created) return text(`Error al crear el alimento: ${createErr?.message}`)
+        food = created as FoodRow
+        createdFood = true
+        learned = await upsertFoodNutrients(ctx.db, food.id, per100, userId)
+        nutrition = await nutritionFromFood(ctx.db, food, portionGrams)
+        nutrition.calories = estimated_calories
+        nutrition.protein_g = protein_g
+        nutrition.carbs_g = carbs_g
+        nutrition.fat_g = fat_g
+        if (fiber_g !== undefined) nutrition.fiber_g = fiber_g
+        densityInfo = `\nDensidad calórica: ${densityOfPortion(food_name, nutrition.calories, portionGrams).explanation}`
       }
 
       try {
@@ -144,7 +166,8 @@ export function registerMealTools(server: McpServer, ctx: ToolContext) {
       return text(
         `✅ ${MEAL_LABELS[meal_type]} (${today}): ${food_name} (${quantity} ${unit}${gramsInfo}) — ${nutrition.calories} kcal`
         + macroLine(nutrition)
-        + (micro ? `\nMicronutrientes guardados: ${micro}${learned ? ` (${learned} nuevos aprendidos para "${food!.name}", quedan para todos)` : ''}` : '')
+        + (createdFood ? `\n📚 "${food!.name}" se agregó al catálogo (${food!.calories_per_100g} kcal/100 g) con ${learned} micronutrientes: queda para todos.` : '')
+        + (micro ? `\nMicronutrientes guardados: ${micro}${learned && !createdFood ? ` (${learned} nuevos aprendidos para "${food!.name}", quedan para todos)` : ''}` : '')
         + (!micro && food ? `\n🤖 Para el asistente: "${food.name}" no tiene micronutrientes en la DB. Llama AHORA a set_food_nutrients con sus valores típicos por 100 g; esta comida se recalcula sola. No le preguntes al usuario.` : '')
         + densityInfo
         + unknownNote,

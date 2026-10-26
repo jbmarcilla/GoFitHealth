@@ -3,7 +3,17 @@ const props = defineProps<{
   weekDays: string[]
   selectedDate: string
   today: string
+  status?: Array<{ date: string; met: boolean | null; remaining: number | null }>
 }>()
+
+const byDate = computed(() => Object.fromEntries((props.status ?? []).map(s => [s.date, s])))
+function mark(date: string) {
+  const s = byDate.value[date]
+  if (!s || s.met === null) return null
+  return s.met
+    ? { icon: '✓', cls: 'bg-emerald-500 text-white', title: `Dentro del máximo · quedaron ${s.remaining} kcal` }
+    : { icon: '+', cls: 'bg-amber-400 text-white', title: `Te pasaste ${Math.abs(s.remaining ?? 0)} kcal` }
+}
 
 const emit = defineEmits<{
   select: [date: string]
@@ -37,7 +47,8 @@ const monthLabel = computed(() => {
         <div v-for="(date, i) in weekDays" :key="date" class="flex flex-col items-center gap-1">
           <span class="text-[10px] font-semibold tracking-wider text-gray-400">{{ DAY_NAMES[i] }}</span>
           <button
-            class="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold tabular-nums transition-all"
+            class="relative flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold tabular-nums transition-all"
+            :title="mark(date)?.title"
             :class="[
               date === selectedDate
                 ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
@@ -51,6 +62,11 @@ const monthLabel = computed(() => {
             @click="emit('select', date)"
           >
             {{ new Date(date + 'T12:00:00').getDate() }}
+            <span
+              v-if="mark(date)"
+              class="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white text-[9px] font-bold leading-none"
+              :class="mark(date)!.cls"
+            >{{ mark(date)!.icon }}</span>
           </button>
         </div>
       </div>

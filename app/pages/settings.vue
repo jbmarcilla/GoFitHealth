@@ -16,15 +16,15 @@ const connectingTo = ref<'claude' | 'chatgpt' | null>(null)
 const copied = ref('')
 
 const sections: Array<{ key: SectionKey; icon: string; label: string; hint: string }> = [
+  { key: 'goals', icon: '🎯', label: 'Mi peso', hint: 'Actual y objetivo' },
   { key: 'connect', icon: '🔌', label: 'Conectar IA', hint: 'Claude y ChatGPT' },
-  { key: 'goals', icon: '🎯', label: 'Objetivos', hint: 'Peso y metas' },
   { key: 'trainer', icon: '🧑‍🏫', label: 'Mi entrenador', hint: 'Personalidad de la IA' },
   { key: 'location', icon: '📍', label: 'Ubicación', hint: 'Dónde estás ahora' },
   { key: 'profile', icon: '👤', label: 'Perfil', hint: 'Cuenta y preferencias' },
 ]
 
 const activeSection = ref<SectionKey>(
-  sections.some(s => s.key === route.query.tab) ? route.query.tab as SectionKey : 'connect',
+  sections.some(s => s.key === route.query.tab) ? route.query.tab as SectionKey : 'goals',
 )
 
 function selectSection(key: SectionKey) {
@@ -157,19 +157,58 @@ function formatDay(iso: string) {
   return new Date(iso).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-// ---------- Objetivos ----------
-const initialWeight = ref<number | null>(null)
+// ---------- Mi peso ----------
+const weightInput = ref<number | null>(null)
+const targetInput = ref<number | null>(null)
+const editingWeight = ref(false)
+const editingTarget = ref(false)
 const savingWeight = ref(false)
 const savingGoal = ref(false)
 
-async function saveInitialWeight() {
-  if (!initialWeight.value) return
+const targetWeightKg = computed(() => (currentGoal.value?.target_weight_kg ? Number(currentGoal.value.target_weight_kg) : null))
+const startWeightKg = computed(() => {
+  const logs = latestWeight.value
+  return logs?.length ? Number(logs[logs.length - 1].weight_kg) : null
+})
+const lastWeighDate = computed(() => latestWeight.value?.[0]?.date ?? null)
+
+const weightProgress = computed(() => {
+  const start = startWeightKg.value
+  const current = currentWeightKg.value !== null ? Number(currentWeightKg.value) : null
+  const target = targetWeightKg.value
+  if (start === null || current === null || target === null) return null
+  const remaining = Math.abs(current - target)
+  const total = Math.abs(start - target)
+  const movedTowardTarget = (start - current) * Math.sign(start - target)
+  const pct = total > 0 ? Math.min(100, Math.max(0, (movedTowardTarget / total) * 100)) : (remaining < 0.05 ? 100 : 0)
+  return { start, current, target, remaining, done: Math.max(0, movedTowardTarget), pct }
+})
+
+function relativeDay(date: string) {
+  const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(`${date}T00:00:00`).getTime()) / 86_400_000)
+  if (days <= 0) return 'hoy'
+  if (days === 1) return 'ayer'
+  return `hace ${days} días`
+}
+
+function startEditWeight() {
+  weightInput.value = currentWeightKg.value !== null ? Number(currentWeightKg.value) : null
+  editingWeight.value = true
+}
+
+function startEditTarget() {
+  targetInput.value = targetWeightKg.value
+  editingTarget.value = true
+}
+
+async function saveWeight() {
+  if (!weightInput.value) return
   savingWeight.value = true
   message.value = ''
   try {
-    await $fetch('/api/weight', { method: 'POST', body: { weight_kg: initialWeight.value, notes: 'Peso inicial' } })
-    message.value = 'Peso inicial registrado'
-    initialWeight.value = null
+    await $fetch('/api/weight', { method: 'POST', body: { weight_kg: weightInput.value } })
+    message.value = 'Peso de hoy registrado'
+    editingWeight.value = false
     await refreshWeight()
   } catch (e: any) {
     showError(e)
@@ -177,17 +216,27 @@ async function saveInitialWeight() {
   savingWeight.value = false
 }
 
-async function saveGoal() {
+async function saveGoal(successMessage = 'Metas guardadas') {
   savingGoal.value = true
   message.value = ''
   try {
     await $fetch('/api/goals', { method: 'POST', body: goalForm })
-    message.value = 'Objetivo actualizado'
+    message.value = successMessage
     await refreshGoal()
   } catch (e: any) {
     showError(e)
   }
   savingGoal.value = false
+}
+
+async function saveTarget() {
+  if (!targetInput.value) return
+  goalForm.target_weight_kg = targetInput.value
+  if (currentWeightKg.value !== null && !currentGoal.value) {
+    goalForm.goal_type = targetInput.value < Number(currentWeightKg.value) ? 'lose_weight' : targetInput.value > Number(currentWeightKg.value) ? 'gain_weight' : 'maintain'
+  }
+  await saveGoal('Peso objetivo guardado')
+  editingTarget.value = false
 }
 
 const goalTypeLabels: Record<string, string> = {
@@ -346,22 +395,19 @@ function closeModal() {
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto px-4 py-8">
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">Ajustes</h1>
-      <p class="text-sm text-gray-500">Configura tu cuenta, tus metas y tu entrenador.</p>
-    </div>
+  <div class="mx-auto max-w-4xl px-4 py-10">
+    <h1 class="mb-8 text-sm font-medium uppercase tracking-wider text-gray-400">Ajustes</h1>
 
-    <div class="flex flex-col md:flex-row gap-6">
+    <div class="flex flex-col gap-8 md:flex-row md:gap-12">
       <!-- ==================== SIDEBAR ==================== -->
-      <aside class="md:w-56 shrink-0">
+      <aside class="shrink-0 md:w-48">
         <!-- Mobile: tabs -->
         <nav class="md:hidden flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
           <button
             v-for="s in sections"
             :key="s.key"
             class="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium transition-colors"
-            :class="activeSection === s.key ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-600'"
+            :class="activeSection === s.key ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600'"
             @click="selectSection(s.key)"
           >
             <span>{{ s.icon }}</span>{{ s.label }}
@@ -369,41 +415,19 @@ function closeModal() {
         </nav>
 
         <!-- Desktop: sidebar -->
-        <div class="hidden md:block sticky top-24">
-          <div class="flex items-center gap-3 p-3 mb-3">
-            <img
-              v-if="googleAvatar"
-              :src="googleAvatar"
-              :alt="googleName"
-              class="w-10 h-10 rounded-full ring-2 ring-emerald-100"
-              referrerpolicy="no-referrer"
-            />
-            <div v-else class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700">
-              {{ googleName.charAt(0) || '?' }}
-            </div>
-            <div class="min-w-0">
-              <p class="text-sm font-semibold text-gray-900 truncate">{{ googleName || 'Usuario' }}</p>
-              <p class="text-xs text-gray-400 truncate">{{ googleEmail }}</p>
-            </div>
-          </div>
-
-          <nav class="space-y-1">
-            <button
-              v-for="s in sections"
-              :key="s.key"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
-              :class="activeSection === s.key ? 'bg-emerald-50 text-emerald-800' : 'text-gray-600 hover:bg-gray-50'"
-              @click="selectSection(s.key)"
-            >
-              <span class="text-lg">{{ s.icon }}</span>
-              <span class="flex-1 min-w-0">
-                <span class="block text-sm font-medium">{{ s.label }}</span>
-                <span class="block text-xs text-gray-400 truncate">{{ s.hint }}</span>
-              </span>
-              <span v-if="s.key === 'connect' && isConnected" class="w-2 h-2 rounded-full bg-emerald-500" title="Conectado" />
-            </button>
-          </nav>
-        </div>
+        <nav class="sticky top-24 hidden space-y-0.5 md:block">
+          <button
+            v-for="s in sections"
+            :key="s.key"
+            class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors"
+            :class="activeSection === s.key ? 'bg-white font-medium text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-900'"
+            @click="selectSection(s.key)"
+          >
+            <span class="w-5 text-center text-base">{{ s.icon }}</span>
+            <span class="flex-1">{{ s.label }}</span>
+            <span v-if="s.key === 'connect' && isConnected" class="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Conectado" />
+          </button>
+        </nav>
       </aside>
 
       <!-- ==================== CONTENT ==================== -->
@@ -503,81 +527,152 @@ function closeModal() {
         </section>
 
         <!-- ========== OBJETIVOS ========== -->
-        <section v-else-if="activeSection === 'goals'" class="space-y-4">
+        <section v-else-if="activeSection === 'goals'" class="space-y-6">
           <header>
-            <h2 class="font-semibold text-lg text-gray-900">Mis objetivos</h2>
-            <p class="text-sm text-gray-500">Define tus metas para que GoFit te acompañe mejor.</p>
+            <h2 class="text-xl font-semibold tracking-tight text-gray-900">Mi peso</h2>
+            <p class="mt-1 text-sm text-gray-500">Dónde estás y a dónde quieres llegar.</p>
           </header>
 
-          <div class="p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <span class="text-xs font-medium text-blue-500 uppercase tracking-wider">Peso actual</span>
-                <p v-if="currentWeightKg" class="text-3xl font-bold text-gray-900 mt-0.5">{{ currentWeightKg }} kg</p>
-                <div v-else class="mt-1.5">
-                  <p class="text-xs text-gray-500 mb-2">Registra tu peso de hoy como punto de partida.</p>
-                  <div class="flex items-center gap-2">
-                    <input v-model.number="initialWeight" type="number" step="0.1" min="30" max="300" class="input !w-28" placeholder="75.0" />
-                    <span class="text-sm text-gray-500">kg</span>
-                    <button
-                      class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-xl transition-colors text-sm"
-                      :disabled="!initialWeight || savingWeight"
-                      @click="saveInitialWeight"
-                    >
-                      {{ savingWeight ? 'Guardando...' : 'Registrar' }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div v-if="currentGoal?.target_weight_kg" class="text-right">
-                <span class="text-xs font-medium text-blue-500 uppercase tracking-wider">Objetivo</span>
-                <p class="text-3xl font-bold text-gray-900 mt-0.5">{{ currentGoal.target_weight_kg }} kg</p>
-                <p
-                  v-if="currentWeightKg"
-                  class="text-xs font-semibold"
-                  :class="Number(currentWeightKg) > Number(currentGoal.target_weight_kg) ? 'text-amber-600' : 'text-emerald-600'"
-                >
-                  Faltan {{ Math.abs(Number(currentWeightKg) - Number(currentGoal.target_weight_kg)).toFixed(1) }} kg
+          <div class="grid gap-4 sm:grid-cols-2">
+            <!-- Peso actual -->
+            <div class="rounded-2xl border border-gray-200 bg-white p-6">
+              <p class="text-xs font-medium uppercase tracking-wider text-gray-400">Peso actual</p>
+              <template v-if="!editingWeight && currentWeightKg !== null">
+                <p class="mt-3 text-5xl font-semibold tracking-tight text-gray-900 tabular-nums">
+                  {{ Number(currentWeightKg).toFixed(1) }}<span class="ml-1 text-xl font-normal text-gray-400">kg</span>
                 </p>
-              </div>
+                <div class="mt-4 flex items-center justify-between">
+                  <span class="text-xs text-gray-400">Registrado {{ lastWeighDate ? relativeDay(lastWeighDate) : '' }}</span>
+                  <button class="text-sm font-medium text-gray-900 hover:text-emerald-600" @click="startEditWeight">Actualizar</button>
+                </div>
+              </template>
+              <form v-else class="mt-3" @submit.prevent="saveWeight">
+                <p v-if="currentWeightKg === null" class="mb-3 text-sm text-gray-500">¿Cuánto pesas hoy? Será tu punto de partida.</p>
+                <div class="flex items-baseline gap-2 border-b-2 border-gray-200 focus-within:border-emerald-500 transition-colors">
+                  <input
+                    v-model.number="weightInput"
+                    type="number" step="0.1" min="30" max="300" inputmode="decimal" autofocus
+                    class="w-full bg-transparent py-1 text-4xl font-semibold tracking-tight text-gray-900 outline-none tabular-nums placeholder:text-gray-300"
+                    placeholder="75.0"
+                  />
+                  <span class="text-xl text-gray-400">kg</span>
+                </div>
+                <div class="mt-4 flex items-center justify-end gap-3">
+                  <button v-if="currentWeightKg !== null" type="button" class="text-sm text-gray-400 hover:text-gray-600" @click="editingWeight = false">Cancelar</button>
+                  <button
+                    type="submit"
+                    class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-40"
+                    :disabled="!weightInput || savingWeight"
+                  >
+                    {{ savingWeight ? 'Guardando…' : 'Guardar' }}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Peso objetivo -->
+            <div class="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-6">
+              <p class="text-xs font-medium uppercase tracking-wider text-emerald-700/70">Peso objetivo</p>
+              <template v-if="!editingTarget && targetWeightKg !== null">
+                <p class="mt-3 text-5xl font-semibold tracking-tight text-emerald-700 tabular-nums">
+                  {{ targetWeightKg.toFixed(1) }}<span class="ml-1 text-xl font-normal text-emerald-600/50">kg</span>
+                </p>
+                <div class="mt-4 flex items-center justify-between">
+                  <span class="text-xs text-emerald-700/60">{{ goalTypeLabels[currentGoal?.goal_type] ?? '' }}</span>
+                  <button class="text-sm font-medium text-emerald-700 hover:text-emerald-900" @click="startEditTarget">Cambiar</button>
+                </div>
+              </template>
+              <form v-else class="mt-3" @submit.prevent="saveTarget">
+                <p v-if="targetWeightKg === null" class="mb-3 text-sm text-emerald-800/70">¿A qué peso quieres llegar?</p>
+                <div class="flex items-baseline gap-2 border-b-2 border-emerald-200 focus-within:border-emerald-500 transition-colors">
+                  <input
+                    v-model.number="targetInput"
+                    type="number" step="0.1" min="30" max="300" inputmode="decimal"
+                    class="w-full bg-transparent py-1 text-4xl font-semibold tracking-tight text-emerald-700 outline-none tabular-nums placeholder:text-emerald-200"
+                    placeholder="70.0"
+                  />
+                  <span class="text-xl text-emerald-600/50">kg</span>
+                </div>
+                <div class="mt-4 flex items-center justify-end gap-3">
+                  <button v-if="targetWeightKg !== null" type="button" class="text-sm text-emerald-700/60 hover:text-emerald-800" @click="editingTarget = false">Cancelar</button>
+                  <button
+                    type="submit"
+                    class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
+                    :disabled="!targetInput || savingGoal"
+                  >
+                    {{ savingGoal ? 'Guardando…' : 'Guardar' }}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
 
-          <div class="card space-y-4">
-            <div>
-              <label class="text-xs font-medium text-gray-500 mb-1.5 block">Mi objetivo</label>
-              <select v-model="goalForm.goal_type" class="input">
-                <option v-for="(label, key) in goalTypeLabels" :key="key" :value="key">{{ label }}</option>
-              </select>
+          <!-- Progreso -->
+          <div v-if="weightProgress" class="rounded-2xl border border-gray-200 bg-white p-6">
+            <div class="flex items-baseline justify-between">
+              <p class="text-sm text-gray-500">
+                <template v-if="weightProgress.remaining < 0.05">🎉 ¡Llegaste a tu objetivo!</template>
+                <template v-else>Te faltan <span class="font-semibold text-gray-900">{{ weightProgress.remaining.toFixed(1) }} kg</span></template>
+              </p>
+              <p class="text-sm font-semibold text-emerald-600 tabular-nums">{{ Math.round(weightProgress.pct) }}%</p>
             </div>
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="text-xs font-medium text-gray-500 mb-1.5 block">Peso objetivo (kg)</label>
-                <input v-model.number="goalForm.target_weight_kg" type="number" step="0.1" min="30" max="300" class="input" placeholder="70.0" />
-              </div>
-              <div>
-                <label class="text-xs font-medium text-gray-500 mb-1.5 block">Masa muscular obj. (kg)</label>
-                <input v-model.number="goalForm.target_muscle_mass_kg" type="number" step="0.1" min="10" max="150" class="input" placeholder="35.0" />
-              </div>
-              <div>
-                <label class="text-xs font-medium text-gray-500 mb-1.5 block">Calorías diarias</label>
-                <input v-model.number="goalForm.daily_calorie_target" type="number" step="50" min="800" max="8000" class="input" placeholder="2000" />
-              </div>
-              <div>
-                <label class="text-xs font-medium text-gray-500 mb-1.5 block">Agua diaria (ml)</label>
-                <input v-model.number="goalForm.daily_water_ml" type="number" step="100" min="500" max="10000" class="input" placeholder="2000" />
-              </div>
+            <div class="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
+              <div class="h-full rounded-full bg-emerald-500 transition-all duration-700" :style="{ width: `${weightProgress.pct}%` }" />
             </div>
-            <div class="flex justify-end">
-              <button
-                class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 rounded-xl transition-colors text-sm"
-                :disabled="savingGoal"
-                @click="saveGoal"
-              >
-                {{ savingGoal ? 'Guardando...' : 'Guardar objetivo' }}
-              </button>
+            <div class="mt-2 flex justify-between text-xs text-gray-400 tabular-nums">
+              <span>Inicio {{ weightProgress.start.toFixed(1) }} kg</span>
+              <span>Meta {{ weightProgress.target.toFixed(1) }} kg</span>
             </div>
           </div>
+
+          <!-- Más metas -->
+          <details class="group rounded-2xl border border-gray-200 bg-white">
+            <summary class="flex cursor-pointer list-none items-center justify-between p-6 text-sm font-medium text-gray-900">
+              Más metas
+              <span class="text-xs font-normal text-gray-400 group-open:hidden">Tipo de objetivo, masa muscular, calorías y agua</span>
+              <span class="hidden text-gray-400 group-open:inline">−</span>
+            </summary>
+            <div class="space-y-5 border-t border-gray-100 p-6">
+              <div>
+                <p class="mb-2 text-xs font-medium text-gray-500">Mi objetivo</p>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="(label, key) in goalTypeLabels"
+                    :key="key"
+                    type="button"
+                    class="rounded-full border px-3 py-1.5 text-sm transition-colors"
+                    :class="goalForm.goal_type === key ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
+                    @click="goalForm.goal_type = key"
+                  >
+                    {{ label }}
+                  </button>
+                </div>
+              </div>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <label class="block">
+                  <span class="mb-1.5 block text-xs font-medium text-gray-500">Masa muscular (kg)</span>
+                  <input v-model.number="goalForm.target_muscle_mass_kg" type="number" step="0.1" min="10" max="150" class="input" placeholder="35.0" />
+                </label>
+                <label class="block">
+                  <span class="mb-1.5 block text-xs font-medium text-gray-500">Calorías al día</span>
+                  <input v-model.number="goalForm.daily_calorie_target" type="number" step="50" min="800" max="8000" class="input" placeholder="2000" />
+                </label>
+                <label class="block">
+                  <span class="mb-1.5 block text-xs font-medium text-gray-500">Agua al día (ml)</span>
+                  <input v-model.number="goalForm.daily_water_ml" type="number" step="100" min="500" max="10000" class="input" placeholder="2000" />
+                </label>
+              </div>
+              <div class="flex justify-end">
+                <button
+                  class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-40"
+                  :disabled="savingGoal"
+                  @click="saveGoal()"
+                >
+                  {{ savingGoal ? 'Guardando…' : 'Guardar metas' }}
+                </button>
+              </div>
+            </div>
+          </details>
         </section>
 
         <!-- ========== ENTRENADOR ========== -->

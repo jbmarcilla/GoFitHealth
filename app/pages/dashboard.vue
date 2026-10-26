@@ -153,35 +153,48 @@ function microTone(n: { percent: number | null; is_limit: boolean }) {
       <p class="mt-2 text-[10px] text-gray-400">Verde: cubierto · Ámbar: bajo · Rojo: exceso</p>
     </div>
 
-    <!-- Water + Exercise side by side -->
-    <div class="mb-6 grid grid-cols-2 gap-3">
-      <div class="rounded-2xl border border-gray-100 bg-white p-4">
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">💧 Agua</p>
-        <p class="mt-2 text-2xl font-bold tabular-nums text-gray-900">
-          {{ Math.round(waterMl / 250) }}<span class="text-sm font-normal text-gray-400"> / {{ Math.ceil(waterGoal / 250) }}</span>
-        </p>
-        <p class="text-[11px] text-gray-400">vasos</p>
-        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
-          <div
-            class="h-full rounded-full bg-sky-500 transition-all duration-500"
-            :style="{ width: `${Math.min(100, (waterMl / waterGoal) * 100)}%` }"
-          />
+    <!-- Exercise (full width, prominent) -->
+    <div class="mb-6 rounded-2xl border border-gray-100 bg-white p-4">
+      <div class="flex items-center justify-between">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">🔥 Ejercicio</p>
+        <span v-if="caloriesOut > 0" class="flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-bold tabular-nums text-orange-600">
+          🔥 {{ caloriesOut.toLocaleString('es-PE') }} kcal
+        </span>
+      </div>
+      <div v-if="status?.exercises?.length" class="mt-3 space-y-2">
+        <div
+          v-for="e in status.exercises"
+          :key="e.id"
+          class="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2.5"
+        >
+          <div>
+            <p class="text-sm font-medium text-gray-800">{{ e.exercise_name }}</p>
+            <p class="text-xs text-gray-400">{{ e.duration_minutes }} minutos</p>
+          </div>
+          <span class="text-sm font-semibold tabular-nums text-orange-600">{{ e.calories_burned }} kcal</span>
         </div>
       </div>
+      <p v-else class="mt-3 text-center text-sm text-gray-400">
+        Sin ejercicio registrado. Dile a tu IA qué entrenamiento hiciste.
+      </p>
+    </div>
 
-      <div class="rounded-2xl border border-gray-100 bg-white p-4">
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">🏃 Ejercicio</p>
-        <p class="mt-2 text-2xl font-bold tabular-nums text-gray-900">
-          {{ caloriesOut.toLocaleString('es-PE') }}
-        </p>
-        <p class="text-[11px] text-gray-400">kcal quemadas</p>
-        <div v-if="status?.exercises?.length" class="mt-2 space-y-0.5">
-          <p v-for="e in status.exercises" :key="e.id" class="truncate text-[11px] text-gray-500">
-            {{ e.exercise_name }} · {{ e.duration_minutes }}min
-          </p>
-        </div>
-        <p v-else class="mt-2 text-[11px] text-gray-300">Sin ejercicio</p>
+    <!-- Water -->
+    <div class="mb-6 rounded-2xl border border-gray-100 bg-white p-4">
+      <div class="flex items-center justify-between">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">💧 Agua</p>
+        <span class="text-xs text-gray-400">{{ waterMl }} / {{ waterGoal }} ml</span>
       </div>
+      <p class="mt-2 text-2xl font-bold tabular-nums text-gray-900">
+        {{ Math.round(waterMl / 250) }}<span class="text-sm font-normal text-gray-400"> / {{ Math.ceil(waterGoal / 250) }} vasos</span>
+      </p>
+      <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
+        <div
+          class="h-full rounded-full bg-sky-500 transition-all duration-500"
+          :style="{ width: `${Math.min(100, (waterMl / waterGoal) * 100)}%` }"
+        />
+      </div>
+      <p v-if="waterMl >= waterGoal" class="mt-2 text-sm font-medium text-sky-600">🎉 ¡Meta de agua cumplida!</p>
     </div>
 
     <!-- Weight chart -->

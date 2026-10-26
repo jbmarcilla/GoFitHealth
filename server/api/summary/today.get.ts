@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
 
   const [weightRes, mealsRes, waterRes, exercisesRes, goalRes] = await Promise.all([
     admin.from('weight_logs').select('*').eq('user_id', user.id).eq('date', date).maybeSingle(),
-    admin.from('meal_logs').select('*, foods!food_id(food_category)').eq('user_id', user.id).eq('date', date).order('created_at'),
+    admin.from('meal_logs').select('*, foods!food_id(food_category, caloric_density)').eq('user_id', user.id).eq('date', date).order('created_at'),
     admin.from('water_logs').select('amount_ml').eq('user_id', user.id).eq('date', date),
     admin.from('exercise_logs').select('*').eq('user_id', user.id).eq('date', date).order('created_at'),
     admin.from('goals').select('goal_type, target_weight_kg, target_muscle_mass_kg, daily_calorie_target, daily_protein_g, daily_water_ml').eq('user_id', user.id).eq('active', true).maybeSingle(),

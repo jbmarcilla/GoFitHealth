@@ -1,5 +1,11 @@
+function localToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  }).format(new Date())
+}
+
 export function useDashboard() {
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = localToday()
   const selectedDate = ref(todayStr)
 
   const { data: dayStatus, refresh: refreshDay, status: dayFetchStatus } = useFetch('/api/summary/today', {

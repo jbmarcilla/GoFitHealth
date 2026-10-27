@@ -4,8 +4,8 @@ export default defineEventHandler(async (event) => {
   const admin = useSupabaseAdmin()
 
   const days = Math.min(Number(query.days) || 30, 365)
-  const from = new Date()
-  from.setDate(from.getDate() - days)
+  const from = new Date(await userToday(user.id) + 'T12:00:00Z')
+  from.setUTCDate(from.getUTCDate() - days)
   const fromStr = from.toISOString().split('T')[0]
 
   const [weightsRes, mealsRes, exercisesRes] = await Promise.all([

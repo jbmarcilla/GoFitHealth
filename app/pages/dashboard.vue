@@ -35,17 +35,6 @@ const targetKg = computed(() => (goal.value?.target_weight_kg ? Number(goal.valu
 
 const weights = computed<Array<{ date: string; weight_kg: number }>>(() => progress.value?.weights ?? [])
 const weightOfDay = computed(() => (status.value?.weight?.weight_kg ? Number(status.value.weight.weight_kg) : null))
-const latestKg = computed(() => weightOfDay.value ?? (weights.value.length ? Number(weights.value[weights.value.length - 1].weight_kg) : null))
-const startKg = computed(() => (weights.value.length ? Number(weights.value[0].weight_kg) : null))
-const weightDelta = computed(() => (latestKg.value !== null && startKg.value !== null ? latestKg.value - startKg.value : null))
-const weightProgressPct = computed(() => {
-  if (latestKg.value === null || startKg.value === null || targetKg.value === null) return null
-  const total = Math.abs(startKg.value - targetKg.value)
-  if (total < 0.1) return 100
-  const done = Math.abs(startKg.value - latestKg.value)
-  const towards = (startKg.value > targetKg.value) === (startKg.value > latestKg.value)
-  return Math.max(0, Math.min(100, Math.round(((towards ? done : -done) / total) * 100)))
-})
 
 const proteinG = computed(() => nutrition.value?.protein_g ?? 0)
 const carbsG = computed(() => nutrition.value?.carbs_g ?? 0)
@@ -130,38 +119,15 @@ function microTone(n: { percent: number | null; is_limit: boolean }) {
       />
     </div>
 
-    <!-- Weight metric -->
-    <div class="mb-6 rounded-2xl border border-gray-100 bg-white px-4 py-4">
-      <div class="flex items-center justify-between">
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">⚖️ Peso</p>
-        <span v-if="weightDelta !== null && weights.length > 1" class="text-xs tabular-nums" :class="weightDelta < 0 ? 'text-emerald-600' : weightDelta > 0 ? 'text-amber-600' : 'text-gray-400'">
-          {{ weightDelta > 0 ? '+' : '' }}{{ weightDelta.toFixed(1) }} kg en 30 días
-        </span>
-      </div>
-      <div class="mt-2 flex items-end justify-between">
-        <p class="text-2xl font-bold tabular-nums text-gray-900">
-          <template v-if="latestKg !== null">{{ latestKg.toFixed(1) }}<span class="text-sm font-normal text-gray-400"> kg</span></template>
-          <template v-else>—</template>
-        </p>
-        <p v-if="targetKg !== null" class="text-xs text-gray-400">
-          Meta <b class="text-gray-700">{{ targetKg.toFixed(1) }} kg</b>
-          <template v-if="latestKg !== null"> · faltan {{ Math.abs(latestKg - targetKg).toFixed(1) }}</template>
-        </p>
-        <NuxtLink v-else to="/settings" class="text-xs text-emerald-600 hover:underline">Definir meta →</NuxtLink>
-      </div>
-      <template v-if="weightProgressPct !== null">
-        <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
-          <div class="h-full rounded-full bg-emerald-500 transition-all duration-700" :style="{ width: `${weightProgressPct}%` }" />
-        </div>
-        <div class="mt-1 flex justify-between text-[10px] tabular-nums text-gray-400">
-          <span>{{ startKg?.toFixed(1) }} kg</span>
-          <span>{{ weightProgressPct }}% del camino</span>
-          <span>{{ targetKg?.toFixed(1) }} kg</span>
-        </div>
-      </template>
-      <p v-else-if="latestKg === null" class="mt-1 text-xs text-gray-400">Dile a tu IA cuánto pesas hoy.</p>
-      <p v-else-if="!weightOfDay && isToday" class="mt-1 text-xs text-amber-600">Hoy aún no te pesaste · último registro</p>
-    </div>
+    <!-- Weight: current, fluctuation, goal line and projection -->
+    <DashboardWeightChart
+      class="mb-6"
+      :data="weights"
+      :target-kg="targetKg"
+      :weeks-to-goal="status?.calorie_plan?.weeks_to_goal ?? null"
+      :weight-of-day="weightOfDay"
+      :is-today="isToday"
+    />
 
     <!-- Macros (tap to see micronutrients) -->
     <div v-if="nutrition" class="mb-6 rounded-2xl border border-gray-100 bg-white px-4 py-5">
@@ -268,14 +234,6 @@ function microTone(n: { percent: number | null; is_limit: boolean }) {
         />
       </div>
       <p v-if="waterMl >= waterGoal" class="mt-2 text-sm font-medium text-sky-600">🎉 ¡Meta de agua cumplida!</p>
-    </div>
-
-    <!-- Weight chart -->
-    <div class="mb-6">
-      <DashboardWeightChart
-        :data="progress?.weights ?? []"
-        :target-kg="targetKg"
-      />
     </div>
 
     <!-- Quick log form (secondary) -->

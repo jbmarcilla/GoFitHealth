@@ -1,5 +1,5 @@
 export function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString('es-PE', {
+  return new Date(date + 'T12:00:00').toLocaleDateString('es-PE', {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
